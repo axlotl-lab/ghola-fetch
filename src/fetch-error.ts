@@ -1,4 +1,4 @@
-import { GholaResponse } from "./types";
+import { GholaResponse } from './types';
 
 export class GholaFetchError<T> extends Error {
   status: number;

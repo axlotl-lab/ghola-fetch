@@ -1,4 +1,4 @@
-import { ICache } from "./cache/types";
+import { ICache } from './cache/types';
 
 export type GholaOptions = {
   baseUrl?: string;
@@ -22,10 +22,10 @@ export type GholaRequestOptions = {
     headers?: Record<string, string>;
     body?: any;
   };
-  cache?: { keyPrefix?: string }
+  cache?: { keyPrefix?: string };
 };
 
 export type GholaMiddleware = {
   pre?: (options: GholaRequestOptions) => GholaRequestOptions | Promise<GholaRequestOptions>;
   post?: <T>(response: GholaResponse<T>) => GholaResponse<T> | Promise<GholaResponse<T>>;
-}
+};

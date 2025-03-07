@@ -7,4 +7,4 @@ export interface ICache {
 
 export type CacheOptions = {
   maxCapacity?: number;
-}
+};

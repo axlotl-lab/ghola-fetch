@@ -1,4 +1,4 @@
-import { CacheOptions, ICache } from "./types";
+import { CacheOptions, ICache } from './types';
 
 export class InMemoryCache implements ICache {
   private cache: Map<string, { value: any; expiration: number }> = new Map();

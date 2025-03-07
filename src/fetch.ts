@@ -1,6 +1,6 @@
-import { ICache } from "./cache/types";
-import { GholaFetchError } from "./fetch-error";
-import { GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse } from "./types";
+import { ICache } from './cache/types';
+import { GholaFetchError } from './fetch-error';
+import { GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse } from './types';
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
@@ -13,9 +13,8 @@ export class GholaFetch {
     this.baseUrl = options?.baseUrl ?? '';
     this.defaultHeaders = options?.headers;
     this.cache = options?.cache;
-    this.isNode = typeof process !== 'undefined' &&
-      process.versions != null &&
-      process.versions.node != null;
+    this.isNode =
+      typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
   }
 
   /**
@@ -62,7 +61,10 @@ export class GholaFetch {
    * @param options The request options
    * @returns A promise that resolves to the API response
    */
-  public async request<T = any>(endpoint: string, options: GholaRequestOptions = {}): Promise<GholaResponse<T>> {
+  public async request<T = any>(
+    endpoint: string,
+    options: GholaRequestOptions = {}
+  ): Promise<GholaResponse<T>> {
     const headers = { ...this.defaultHeaders, ...options.options?.headers };
 
     // Apply pre processing middlewares
@@ -82,7 +84,10 @@ export class GholaFetch {
       }
     }
 
-    const body = this.processBody(processedOptions.options?.body, processedOptions.options?.headers ?? {});
+    const body = this.processBody(
+      processedOptions.options?.body,
+      processedOptions.options?.headers ?? {}
+    );
 
     try {
       const response = await fetch(url, {
@@ -158,7 +163,7 @@ export class GholaFetch {
         headers: new Headers(),
         status: 0,
         statusText: 'Network Error',
-        data: { originalError: error } as T
+        data: { originalError: error } as T,
       };
 
       throw new GholaFetchError(
@@ -175,7 +180,10 @@ export class GholaFetch {
    * @param options The request options
    * @returns A promise that resolves to the API response
    */
-  public get<T = any>(endpoint: string, options: { headers?: Record<string, string> } = {}): Promise<GholaResponse<T>> {
+  public get<T = any>(
+    endpoint: string,
+    options: { headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', options });
   }
 
@@ -185,7 +193,10 @@ export class GholaFetch {
    * @param options The request options
    * @returns A promise that resolves to the API response
    */
-  public post<T = any>(endpoint: string, options: { body?: any; headers?: Record<string, string> } = {}): Promise<GholaResponse<T>> {
+  public post<T = any>(
+    endpoint: string,
+    options: { body?: any; headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'POST', options });
   }
 
@@ -195,7 +206,10 @@ export class GholaFetch {
    * @param options The request options
    * @returns A promise that resolves to the API response
    */
-  public put<T = any>(endpoint: string, options: { body?: any; headers?: Record<string, string> } = {}): Promise<GholaResponse<T>> {
+  public put<T = any>(
+    endpoint: string,
+    options: { body?: any; headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'PUT', options });
   }
 
@@ -205,7 +219,10 @@ export class GholaFetch {
    * @param options The request options
    * @returns A promise that resolves to the API response
    */
-  public delete<T = any>(endpoint: string, options: { headers?: Record<string, string> } = {}): Promise<GholaResponse<T>> {
+  public delete<T = any>(
+    endpoint: string,
+    options: { headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE', options });
   }
 
@@ -224,13 +241,19 @@ export class GholaFetch {
         return (await response.text()) as unknown as T;
       }
 
-      if (contentType.includes('application/json') || contentType.includes('application/problem+json')) {
+      if (
+        contentType.includes('application/json') ||
+        contentType.includes('application/problem+json')
+      ) {
         return await response.json();
       } else if (contentType.includes('text/')) {
         return (await response.text()) as unknown as T;
       } else if (contentType.includes('multipart/form-data')) {
         return (await response.formData()) as unknown as T;
-      } else if (contentType.includes('application/octet-stream') || contentType.includes('image/')) {
+      } else if (
+        contentType.includes('application/octet-stream') ||
+        contentType.includes('image/')
+      ) {
         return (await response.blob()) as unknown as T;
       } else if (contentType.includes('application/octet-buffer')) {
         return (await response.arrayBuffer()) as unknown as T;
