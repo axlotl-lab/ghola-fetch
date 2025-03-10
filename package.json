@@ -35,6 +35,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "bugs": {
     "url": "https://github.com/axlotl-lab/ghola-fetch/issues"
   },
