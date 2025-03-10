@@ -1,5 +1,5 @@
 {
-  "name": "ghola-fetch",
+  "name": "@axlotl-lab/ghola-fetch",
   "version": "1.0.4",
   "description": "",
   "main": "./dist/index.js",
