@@ -9,12 +9,35 @@ export class GholaFetch {
   private cache?: ICache;
   private isNode: boolean;
 
+  // Static instance for direct usage
+  private static instance: GholaFetch;
+
   constructor(options?: GholaOptions) {
     this.baseUrl = options?.baseUrl ?? '';
     this.defaultHeaders = options?.headers;
     this.cache = options?.cache;
     this.isNode =
       typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+  }
+
+  /**
+   * Get the singleton instance or create it if it doesn't exist
+   */
+  private static getInstance(): GholaFetch {
+    if (!GholaFetch.instance) {
+      GholaFetch.instance = new GholaFetch();
+    }
+    return GholaFetch.instance;
+  }
+
+  /**
+   * Configure the default instance
+   * @param options The options to configure the default instance
+   * @returns The configured instance
+   */
+  public static create(options?: GholaOptions): GholaFetch {
+    GholaFetch.instance = new GholaFetch(options);
+    return GholaFetch.instance;
   }
 
   /**
@@ -50,9 +73,20 @@ export class GholaFetch {
   /**
    * Registers a middleware with the API client
    * @param middleware The middleware to register
+   * @returns The GholaFetch instance for chaining
    */
-  public use(middleware: GholaMiddleware) {
+  public use(middleware: GholaMiddleware): GholaFetch {
     this.middlewares.push(middleware);
+    return this;
+  }
+
+  /**
+   * Registers a middleware with the static instance
+   * @param middleware The middleware to register
+   * @returns The GholaFetch instance for chaining
+   */
+  public static use(middleware: GholaMiddleware): GholaFetch {
+    return GholaFetch.getInstance().use(middleware);
   }
 
   /**
@@ -175,6 +209,19 @@ export class GholaFetch {
   }
 
   /**
+   * Makes a request to the API (static version)
+   * @param endpoint The API endpoint
+   * @param options The request options
+   * @returns A promise that resolves to the API response
+   */
+  public static request<T = any>(
+    endpoint: string,
+    options: GholaRequestOptions = {}
+  ): Promise<GholaResponse<T>> {
+    return GholaFetch.getInstance().request<T>(endpoint, options);
+  }
+
+  /**
    * Makes a GET request to the API
    * @param endpoint The API endpoint
    * @param options The request options
@@ -185,6 +232,19 @@ export class GholaFetch {
     options: { headers?: Record<string, string> } = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', options });
+  }
+
+  /**
+   * Makes a GET request to the API (static version)
+   * @param endpoint The API endpoint
+   * @param options The request options
+   * @returns A promise that resolves to the API response
+   */
+  public static get<T = any>(
+    endpoint: string,
+    options: { headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
+    return GholaFetch.getInstance().get<T>(endpoint, options);
   }
 
   /**
@@ -201,6 +261,19 @@ export class GholaFetch {
   }
 
   /**
+   * Makes a POST request to the API (static version)
+   * @param endpoint The API endpoint
+   * @param options The request options
+   * @returns A promise that resolves to the API response
+   */
+  public static post<T = any>(
+    endpoint: string,
+    options: { body?: any; headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
+    return GholaFetch.getInstance().post<T>(endpoint, options);
+  }
+
+  /**
    * Makes a PUT request to the API
    * @param endpoint The API endpoint
    * @param options The request options
@@ -214,6 +287,19 @@ export class GholaFetch {
   }
 
   /**
+   * Makes a PUT request to the API (static version)
+   * @param endpoint The API endpoint
+   * @param options The request options
+   * @returns A promise that resolves to the API response
+   */
+  public static put<T = any>(
+    endpoint: string,
+    options: { body?: any; headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
+    return GholaFetch.getInstance().put<T>(endpoint, options);
+  }
+
+  /**
    * Makes a DELETE request to the API
    * @param endpoint The API endpoint
    * @param options The request options
@@ -224,6 +310,19 @@ export class GholaFetch {
     options: { headers?: Record<string, string> } = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE', options });
+  }
+
+  /**
+   * Makes a DELETE request to the API (static version)
+   * @param endpoint The API endpoint
+   * @param options The request options
+   * @returns A promise that resolves to the API response
+   */
+  public static delete<T = any>(
+    endpoint: string,
+    options: { headers?: Record<string, string> } = {}
+  ): Promise<GholaResponse<T>> {
+    return GholaFetch.getInstance().delete<T>(endpoint, options);
   }
 
   /**
