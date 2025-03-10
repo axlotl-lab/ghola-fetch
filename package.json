@@ -2,7 +2,18 @@
   "name": "ghola-fetch",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "build": "bunchee",
     "dev": "bunchee --watch",
@@ -22,8 +33,7 @@
     "client"
   ],
   "author": "",
-  "license": "ISC",
-  "type": "module",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/axlotl-lab/ghola-fetch/issues"
   },
@@ -32,6 +42,7 @@
     "@eslint/js": "^9.22.0",
     "@types/jest": "^29.5.14",
     "@typescript-eslint/utils": "^8.26.0",
+    "bunchee": "^6.4.0",
     "eslint": "^9.21.0",
     "jest": "^29.7.0",
     "prettier": "^3.5.3",
