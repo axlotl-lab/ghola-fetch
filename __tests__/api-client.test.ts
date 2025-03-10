@@ -11,173 +11,358 @@ describe('GholaFetch', () => {
   let gholaFetch: GholaFetch;
 
   beforeEach(() => {
+    // Reset static instance for each test
+    GholaFetch.create({ baseUrl: 'https://api.example.com' });
     gholaFetch = new GholaFetch({ baseUrl: 'https://api.example.com' });
     mockFetch.mockReset();
   });
 
-  test('should make a successful GET request with JSON response', async () => {
-    const responseData = { data: 'test' };
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => responseData,
-      text: async () => JSON.stringify(responseData),
-      headers: new Headers({ 'Content-Type': 'application/json' }),
+  describe('Instance methods', () => {
+    test('should make a successful GET request with JSON response', async () => {
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      const response = await gholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
     });
 
-    const response = await gholaFetch.get('/test-endpoint');
+    test('should make a successful GET request with text response', async () => {
+      const responseText = 'This is a text response';
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => responseText,
+        headers: new Headers({ 'Content-Type': 'text/plain' }),
+      });
 
-    expect(response.status).toBe(200);
-    expect(response.data).toEqual(responseData);
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+      const response = await gholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(responseText);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+    });
+
+    test('should make a successful GET request with FormData response', async () => {
+      const formData = new FormData();
+      formData.append('key', 'value');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        formData: async () => formData,
+        headers: new Headers({ 'Content-Type': 'multipart/form-data' }),
+      });
+
+      const response = await gholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(formData);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+    });
+
+    test('should make a successful GET request with Blob response', async () => {
+      const blobData = new Blob(['test blob data'], { type: 'application/octet-stream' });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        blob: async () => blobData,
+        headers: new Headers({ 'Content-Type': 'application/octet-stream' }),
+      });
+
+      const response = await gholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(blobData);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+    });
+
+    test('should make a successful GET request with ArrayBuffer response', async () => {
+      const buffer = new ArrayBuffer(8);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        arrayBuffer: async () => buffer,
+        headers: new Headers({ 'Content-Type': 'application/octet-buffer' }),
+      });
+
+      const response = await gholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(buffer);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+    });
+
+    test('should throw an error on a failed GET request', async () => {
+      const errorData = { message: 'Not Found' };
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: async () => errorData,
+        text: async () => JSON.stringify(errorData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      await expect(gholaFetch.get('/test-endpoint')).rejects.toThrow(GholaFetchError);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+    });
+
+    test('should apply pre and post middlewares', async () => {
+      const preMiddleware = jest.fn(async (options) => ({
+        ...options,
+        options: { ...options.options, headers: { 'X-Pre-Middleware': 'true' } },
+      }));
+      const postMiddleware = jest.fn(async (response) => ({
+        ...response,
+        data: { ...response.data, modified: true },
+      }));
+
+      gholaFetch.use({ pre: preMiddleware, post: postMiddleware });
+
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      const response = await gholaFetch.get('/test-endpoint');
+
+      expect(preMiddleware).toHaveBeenCalled();
+      expect(postMiddleware).toHaveBeenCalled();
+      expect(response.data).toEqual({ ...responseData, modified: true });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/test-endpoint',
+        expect.objectContaining({
+          headers: { 'X-Pre-Middleware': 'true' },
+        })
+      );
+    });
+
+    test('should support method chaining for use() method', async () => {
+      const middleware1 = { pre: jest.fn(async (options) => options) };
+      const middleware2 = { pre: jest.fn(async (options) => options) };
+
+      gholaFetch.use(middleware1).use(middleware2);
+
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      await gholaFetch.get('/test-endpoint');
+
+      expect(middleware1.pre).toHaveBeenCalled();
+      expect(middleware2.pre).toHaveBeenCalled();
+    });
+
+    test('should use baseUrl from request options', async () => {
+      const localApiClient = new GholaFetch();
+
+      const preMiddleware = jest.fn(async (options: GholaRequestOptions) => ({
+        ...options,
+        baseUrl: 'https://from-pre-middleware.com',
+        options: { ...options.options, headers: { 'X-Pre-Middleware': 'true' } },
+      }));
+
+      localApiClient.use({ pre: preMiddleware });
+
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      const response = await localApiClient.get('/test-endpoint');
+
+      expect(preMiddleware).toHaveBeenCalled();
+      expect(response.data).toEqual({ ...responseData });
+      expect(mockFetch).toHaveBeenCalledWith('https://from-pre-middleware.com/test-endpoint', expect.any(Object));
+    });
   });
 
-  test('should make a successful GET request with text response', async () => {
-    const responseText = 'This is a text response';
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      text: async () => responseText,
-      headers: new Headers({ 'Content-Type': 'text/plain' }),
+  describe('Static methods', () => {
+    test('should make a successful static GET request with JSON response', async () => {
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      const response = await GholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
     });
 
-    const response = await gholaFetch.get('/test-endpoint');
+    test('should make a successful static POST request', async () => {
+      const requestBody = { name: 'Test User' };
+      const responseData = { id: 1, name: 'Test User' };
 
-    expect(response.status).toBe(200);
-    expect(response.data).toEqual(responseText);
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
-  });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        statusText: 'Created',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
 
-  test('should make a successful GET request with FormData response', async () => {
-    const formData = new FormData();
-    formData.append('key', 'value');
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      formData: async () => formData,
-      headers: new Headers({ 'Content-Type': 'multipart/form-data' }),
+      const response = await GholaFetch.post('/users', { body: requestBody });
+
+      expect(response.status).toBe(201);
+      expect(response.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/users',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify(requestBody),
+        })
+      );
     });
 
-    const response = await gholaFetch.get('/test-endpoint');
+    test('should make a successful static PUT request', async () => {
+      const requestBody = { id: 1, name: 'Updated User' };
+      const responseData = { id: 1, name: 'Updated User' };
 
-    expect(response.status).toBe(200);
-    expect(response.data).toEqual(formData);
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
-  });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
 
-  test('should make a successful GET request with Blob response', async () => {
-    const blobData = new Blob(['test blob data'], { type: 'application/octet-stream' });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      blob: async () => blobData,
-      headers: new Headers({ 'Content-Type': 'application/octet-stream' }),
+      const response = await GholaFetch.put('/users/1', { body: requestBody });
+
+      expect(response.status).toBe(200);
+      expect(response.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/users/1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify(requestBody),
+        })
+      );
     });
 
-    const response = await gholaFetch.get('/test-endpoint');
+    test('should make a successful static DELETE request', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+        text: async () => '',
+        headers: new Headers({}),
+      });
 
-    expect(response.status).toBe(200);
-    expect(response.data).toEqual(blobData);
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
-  });
+      const response = await GholaFetch.delete('/users/1');
 
-  test('should make a successful GET request with ArrayBuffer response', async () => {
-    const buffer = new ArrayBuffer(8);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      arrayBuffer: async () => buffer,
-      headers: new Headers({ 'Content-Type': 'application/octet-buffer' }),
+      expect(response.status).toBe(204);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/users/1',
+        expect.objectContaining({
+          method: 'DELETE',
+        })
+      );
     });
 
-    const response = await gholaFetch.get('/test-endpoint');
+    test('should allow static configuration with create method', async () => {
+      // Configure a new static instance
+      GholaFetch.create({ baseUrl: 'https://new-api.example.com' });
 
-    expect(response.status).toBe(200);
-    expect(response.data).toEqual(buffer);
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
-  });
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
 
-  test('should throw an error on a failed GET request', async () => {
-    const errorData = { message: 'Not Found' };
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found',
-      json: async () => errorData,
-      text: async () => JSON.stringify(errorData),
-      headers: new Headers({ 'Content-Type': 'application/json' }),
+      const response = await GholaFetch.get('/test-endpoint');
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledWith('https://new-api.example.com/test-endpoint', expect.any(Object));
     });
 
-    await expect(gholaFetch.get('/test-endpoint')).rejects.toThrow(GholaFetchError);
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
-  });
+    test('should apply static middleware', async () => {
+      const preMiddleware = jest.fn(async (options) => ({
+        ...options,
+        options: { ...options.options, headers: { 'X-Static-Middleware': 'true' } },
+      }));
 
-  test('should apply pre and post middlewares', async () => {
-    const preMiddleware = jest.fn(async (options) => ({
-      ...options,
-      options: { ...options.options, headers: { 'X-Pre-Middleware': 'true' } },
-    }));
-    const postMiddleware = jest.fn(async (response) => ({
-      ...response,
-      data: { ...response.data, modified: true },
-    }));
+      GholaFetch.use({ pre: preMiddleware });
 
-    gholaFetch.use({ pre: preMiddleware, post: postMiddleware });
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
 
-    const responseData = { data: 'test' };
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => responseData,
-      text: async () => JSON.stringify(responseData),
-      headers: new Headers({ 'Content-Type': 'application/json' }),
+      const response = await GholaFetch.get('/test-endpoint');
+
+      expect(preMiddleware).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/test-endpoint',
+        expect.objectContaining({
+          headers: { 'X-Static-Middleware': 'true' },
+        })
+      );
     });
 
-    const response = await gholaFetch.get('/test-endpoint');
+    test('should support method chaining for static use() method', async () => {
+      const middleware1 = { pre: jest.fn(async (options) => options) };
+      const middleware2 = { pre: jest.fn(async (options) => options) };
 
-    expect(preMiddleware).toHaveBeenCalled();
-    expect(postMiddleware).toHaveBeenCalled();
-    expect(response.data).toEqual({ ...responseData, modified: true });
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://api.example.com/test-endpoint',
-      expect.objectContaining({
-        headers: { 'X-Pre-Middleware': 'true' },
-      })
-    );
-  });
+      GholaFetch.use(middleware1).use(middleware2);
 
-  test('should use baseUrl from request options', async () => {
-    const localApiClient = new GholaFetch();
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
 
-    const preMiddleware = jest.fn(async (options: GholaRequestOptions) => ({
-      ...options,
-      baseUrl: 'https://from-pre-middleware.com',
-      options: { ...options.options, headers: { 'X-Pre-Middleware': 'true' } },
-    }));
+      await GholaFetch.get('/test-endpoint');
 
-    localApiClient.use({ pre: preMiddleware });
-
-    const responseData = { data: 'test' };
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => responseData,
-      text: async () => JSON.stringify(responseData),
-      headers: new Headers({ 'Content-Type': 'application/json' }),
+      expect(middleware1.pre).toHaveBeenCalled();
+      expect(middleware2.pre).toHaveBeenCalled();
     });
-
-    const response = await localApiClient.get('/test-endpoint');
-
-    expect(preMiddleware).toHaveBeenCalled();
-    expect(response.data).toEqual({ ...responseData });
-    expect(mockFetch).toHaveBeenCalledWith('https://from-pre-middleware.com/test-endpoint', expect.any(Object));
   });
 
   describe('cache', () => {
@@ -338,6 +523,35 @@ describe('GholaFetch', () => {
       const response2 = await gholaFetch.get('/test-endpoint');
       expect(response2.data).toEqual(responseData);
       expect(mockFetch).toHaveBeenCalledTimes(1); // No new fetch call
+    });
+
+    test('should cache responses in static instance', async () => {
+      const staticCache = new InMemoryCache({ maxCapacity: 5 });
+
+      // Configure static instance with cache
+      GholaFetch.create({
+        baseUrl: 'https://api.example.com',
+        cache: staticCache,
+      });
+
+      const responseData = { data: 'static-test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        headers: new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'max-age=10' }),
+      });
+
+      // First request should fetch and cache
+      const response1 = await GholaFetch.get('/static-endpoint');
+      expect(response1.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second request should use cache
+      const response2 = await GholaFetch.get('/static-endpoint');
+      expect(response2.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledTimes(1); // No additional fetch call
     });
   });
 });
