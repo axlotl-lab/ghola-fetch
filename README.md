@@ -21,12 +21,6 @@ A modern, flexible and powerful HTTP client for browser and Node.js environments
 ```bash
 # Using npm
 npm install @axlotl-lab/ghola-fetch
-
-# Using yarn
-yarn add @axlotl-lab/ghola-fetch
-
-# Using pnpm
-pnpm add @axlotl-lab/ghola-fetch
 ```
 
 ## Basic Usage
