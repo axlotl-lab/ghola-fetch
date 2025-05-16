@@ -135,12 +135,41 @@ export class GholaFetch {
       processedOptions.options?.headers ?? {}
     );
 
+    // Configure timeout only if AbortController is available
+    let controller: AbortController | undefined;
+    let signal: AbortSignal | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const timeout = processedOptions.options?.timeout ?? this.defaultTimeout;
+
+    // Only configure timeout if it's specified and AbortController is available
+    if (typeof AbortController !== 'undefined' && timeout) {
+      controller = new AbortController();
+      signal = controller.signal;
+
+      timeoutId = setTimeout(() => {
+        controller?.abort();
+      }, timeout);
+    } else if (timeout && typeof AbortController === 'undefined') {
+      console.warn('GholaFetch: Is not possible to set timeout because AbortController is not available in this environment.');
+    }
+
     try {
-      const response = await fetch(url, {
+      const fetchOptions: RequestInit = {
         method: processedOptions.method || 'GET',
         headers: processedOptions.options?.headers,
         body,
-      });
+      };
+
+      if (signal) {
+        fetchOptions.signal = signal;
+      }
+
+      const response = await fetch(url, fetchOptions);
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
 
       // Try to get the response body, even if it's not OK
       let data: T;
@@ -193,8 +222,26 @@ export class GholaFetch {
       }
 
       return processedResponse;
-    } catch (error) {
+    } catch (error: any) {
       // This block captures both network errors AND API errors (!response.ok)
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      if (error.name === 'AbortError') {
+        console.error('Request timed out after', timeout, 'ms');
+
+        // Create a synthetic response for timeout errors
+        const syntheticResponse: GholaResponse<T> = {
+          headers: new Headers(),
+          status: 408, // Request Timeout
+          statusText: 'Request Timeout',
+          data: { message: `Request timed out after ${timeout}ms` } as T,
+        };
+
+        throw new GholaFetchError('Request timeout', 408, syntheticResponse);
+      }
 
       // If it's already an ApiClientError (from our own throw), just re-throw it
       if (error instanceof GholaFetchError) {
