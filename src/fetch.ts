@@ -343,9 +343,9 @@ export class GholaFetch {
    * @returns The processed body data
    */
   private async getBody<T>(response: Response): Promise<T> {
-    const contentType = response.headers.get('Content-Type');
-
     try {
+      const contentType = response.headers && response.headers.get('Content-Type');
+
       if (!contentType) {
         // Handle case where there is no Content-Type header
         console.warn('No Content-Type header in response');
