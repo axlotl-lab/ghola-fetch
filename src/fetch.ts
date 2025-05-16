@@ -21,6 +21,15 @@ export class GholaFetch {
 
     this.isNode =
       typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
+    // Verify that the fetch API is available and that AbortController is supported
+    if (typeof fetch !== 'function') {
+      console.warn('GholaFetch: fetch API is not available in this environmnet. The library may not work correctly.');
+    }
+
+    if (typeof AbortController === 'undefined') {
+      console.warn('GholaFetch: AbortController is not available in this environment. Timeouts may not work correctly.');
+    }
   }
 
   /**
