@@ -203,6 +203,73 @@ describe('GholaFetch', () => {
       expect(response.data).toEqual({ ...responseData });
       expect(mockFetch).toHaveBeenCalledWith('https://from-pre-middleware.com/test-endpoint', expect.any(Object));
     });
+
+    test('should throw a timeout error when request exceeds timeout limit', async () => {
+      const mockAbort = jest.fn();
+      const mockController = {
+        signal: {
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+          dispatchEvent: jest.fn(),
+        },
+        abort: mockAbort,
+      };
+
+      // Store original AbortController
+      const OriginalAbortController = global.AbortController;
+
+      // Mock AbortController constructor
+      global.AbortController = jest.fn(() => mockController) as any;
+
+      // Mock fetch to properly handle the abort scenario
+      mockFetch.mockImplementationOnce(() => {
+        // Create an abort error like the browser would
+        const error = new Error('The operation was aborted');
+        error.name = 'AbortError';
+        return Promise.reject(error);
+      });
+
+      const timeoutClient = new GholaFetch({
+        baseUrl: 'https://api.example.com',
+        timeout: 1000 // 1 second timeout
+      });
+
+      // Use jest.spyOn to replace setTimeout with an immediate callback
+      jest.spyOn(global, 'setTimeout').mockImplementationOnce((callback) => {
+        callback();
+        return 123 as any; // Return a timeout ID
+      });
+
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+
+      try {
+        await timeoutClient.get('/test-endpoint');
+        fail('Expected request to timeout, but it succeeded');
+      } catch (error: any) {
+        expect(error).toBeInstanceOf(GholaFetchError);
+
+        expect(error.message).toBe('Request timeout');
+        expect(error.status).toBe(408);
+
+        expect(error.response.data.message).toMatch(/timed out after 1000ms/);
+      }
+
+      expect(mockAbort).toHaveBeenCalled();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/test-endpoint',
+        expect.objectContaining({
+          signal: mockController.signal
+        })
+      );
+
+      // Ensure clearTimeout was called (cleanup)
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+
+      // Restore original implementations
+      global.AbortController = OriginalAbortController;
+      jest.restoreAllMocks();
+    });
   });
 
   describe('Static methods', () => {
