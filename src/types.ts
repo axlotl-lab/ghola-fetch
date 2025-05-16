@@ -4,6 +4,7 @@ export type GholaOptions = {
   baseUrl?: string;
   headers?: Record<string, string>;
   cache?: ICache;
+  timeout?: number;
 };
 
 export type GholaResponse<T> = {
@@ -15,13 +16,19 @@ export type GholaResponse<T> = {
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
+export type RequestOptions = {
+  headers?: Record<string, string>;
+  timeout?: number;
+  body?: any;
+}
+
+export type RequestGetOptions = Omit<RequestOptions, 'body'>;
+export type RequestDeleteOptions = Omit<RequestOptions, 'body'>;
+
 export type GholaRequestOptions = {
   baseUrl?: string;
   method?: HttpMethod;
-  options?: {
-    headers?: Record<string, string>;
-    body?: any;
-  };
+  options?: RequestOptions;
   cache?: { keyPrefix?: string };
 };
 

@@ -1,6 +1,6 @@
 import { ICache } from './cache/types';
 import { GholaFetchError } from './fetch-error';
-import { GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse } from './types';
+import { GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse, RequestDeleteOptions, RequestGetOptions, RequestOptions } from './types';
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
@@ -8,6 +8,7 @@ export class GholaFetch {
   private middlewares: GholaMiddleware[] = [];
   private cache?: ICache;
   private isNode: boolean;
+  private defaultTimeout?: number;
 
   // Static instance for direct usage
   private static instance: GholaFetch;
@@ -16,6 +17,8 @@ export class GholaFetch {
     this.baseUrl = options?.baseUrl ?? '';
     this.defaultHeaders = options?.headers;
     this.cache = options?.cache;
+    this.defaultTimeout = options?.timeout;
+
     this.isNode =
       typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
   }
@@ -229,7 +232,7 @@ export class GholaFetch {
    */
   public get<T = any>(
     endpoint: string,
-    options: { headers?: Record<string, string> } = {}
+    options: RequestGetOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', options });
   }
@@ -242,7 +245,7 @@ export class GholaFetch {
    */
   public static get<T = any>(
     endpoint: string,
-    options: { headers?: Record<string, string> } = {}
+    options: RequestGetOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().get<T>(endpoint, options);
   }
@@ -255,7 +258,7 @@ export class GholaFetch {
    */
   public post<T = any>(
     endpoint: string,
-    options: { body?: any; headers?: Record<string, string> } = {}
+    options: RequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'POST', options });
   }
@@ -268,7 +271,7 @@ export class GholaFetch {
    */
   public static post<T = any>(
     endpoint: string,
-    options: { body?: any; headers?: Record<string, string> } = {}
+    options: RequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().post<T>(endpoint, options);
   }
@@ -281,7 +284,7 @@ export class GholaFetch {
    */
   public put<T = any>(
     endpoint: string,
-    options: { body?: any; headers?: Record<string, string> } = {}
+    options: RequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'PUT', options });
   }
@@ -294,7 +297,7 @@ export class GholaFetch {
    */
   public static put<T = any>(
     endpoint: string,
-    options: { body?: any; headers?: Record<string, string> } = {}
+    options: RequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().put<T>(endpoint, options);
   }
@@ -307,7 +310,7 @@ export class GholaFetch {
    */
   public delete<T = any>(
     endpoint: string,
-    options: { headers?: Record<string, string> } = {}
+    options: RequestDeleteOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE', options });
   }
@@ -320,7 +323,7 @@ export class GholaFetch {
    */
   public static delete<T = any>(
     endpoint: string,
-    options: { headers?: Record<string, string> } = {}
+    options: RequestDeleteOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().delete<T>(endpoint, options);
   }
