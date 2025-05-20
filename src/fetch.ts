@@ -172,14 +172,7 @@ export class GholaFetch {
       }
 
       // Try to get the response body, even if it's not OK
-      let data: T;
-      try {
-        data = await this.getBody<T>(response);
-      } catch (bodyError) {
-        console.error('Error processing response body:', bodyError);
-        // If we can't process the body, use null as data
-        data = null as unknown as T;
-      }
+      const data = await this.getBody<T>(response);
 
       const apiResponse: GholaResponse<T> = {
         headers: response.headers,
@@ -422,7 +415,8 @@ export class GholaFetch {
       }
     } catch (error) {
       console.error('Error processing response body:', error);
-      throw new Error('Failed to process response body');
+      // If we can't process the body, use null as data
+      return null as unknown as T;
     }
   }
 
