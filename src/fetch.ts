@@ -472,6 +472,10 @@ export class GholaFetch {
           // Middleware can either return a modified error or convert it to a response
           const result = await middleware.error(processedError);
 
+          if (result === undefined) {
+            continue;
+          }
+
           // If middleware returns a response instead of an error, return it
           if (!(result instanceof GholaFetchError)) {
             return result as GholaResponse<T>;

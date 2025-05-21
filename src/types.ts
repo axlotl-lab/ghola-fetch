@@ -36,5 +36,5 @@ export type GholaRequestOptions = {
 export type GholaMiddleware = {
   pre?: (options: GholaRequestOptions) => GholaRequestOptions | Promise<GholaRequestOptions>;
   post?: <T>(response: GholaResponse<T>) => GholaResponse<T> | Promise<GholaResponse<T>>;
-  error?: <T>(error: GholaFetchError<T>) => GholaResponse<T> | Promise<GholaResponse<T>> | GholaFetchError<T> | Promise<GholaFetchError<T>>;
+  error?: <T>(error: GholaFetchError<T>) => void | GholaResponse<T> | Promise<GholaResponse<T>> | GholaFetchError<T> | Promise<GholaFetchError<T>>;
 };
