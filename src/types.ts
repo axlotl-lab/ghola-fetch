@@ -20,6 +20,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 export type RequestOptions = {
   headers?: Record<string, string>;
   timeout?: number;
+  params?: Record<string, any>;
   body?: any;
 }
 

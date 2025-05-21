@@ -102,6 +102,43 @@ export class GholaFetch {
   }
 
   /**
+ * Builds URL with query parameters
+ * @param baseUrl The base URL without query parameters
+ * @param params The query parameters object
+ * @returns URL with query parameters
+ */
+  private buildUrl(baseUrl: string, params?: Record<string, any>): string {
+    if (!params || Object.keys(params).length === 0) {
+      return baseUrl;
+    }
+
+    // Create an instance of URLSearchParams for proper encoding
+    const searchParams = new URLSearchParams();
+
+    // Add all parameters that are not undefined to the search params
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        // Handle arrays and objects by serializing them to JSON if needed
+        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+          searchParams.append(key, JSON.stringify(value));
+        } else {
+          searchParams.append(key, String(value));
+        }
+      }
+    });
+
+    const queryString = searchParams.toString();
+    if (queryString) {
+      // Check if the URL already has query parameters
+      return baseUrl.includes('?')
+        ? `${baseUrl}&${queryString}`
+        : `${baseUrl}?${queryString}`;
+    }
+
+    return baseUrl;
+  }
+
+  /**
    * Makes a request to the API
    * @param endpoint The API endpoint
    * @param options The request options
@@ -119,7 +156,13 @@ export class GholaFetch {
       options: { ...options.options, headers },
     });
 
-    const url = `${(this.baseUrl || processedOptions.baseUrl) ?? ''}${endpoint}`;
+    let url = `${(this.baseUrl || processedOptions.baseUrl) ?? ''}${endpoint}`;
+
+    // Apply query parameters if provided
+    if (processedOptions.options?.params) {
+      url = this.buildUrl(url, processedOptions.options.params);
+    }
+
     const cacheKey = `${processedOptions.cache?.keyPrefix ?? ''}-${url}`;
 
     // Check cache for existing response
