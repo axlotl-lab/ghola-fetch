@@ -1,4 +1,5 @@
 import { ICache } from './cache/types';
+import { GholaFetchError } from './fetch-error';
 
 export type GholaOptions = {
   baseUrl?: string;
@@ -35,4 +36,5 @@ export type GholaRequestOptions = {
 export type GholaMiddleware = {
   pre?: (options: GholaRequestOptions) => GholaRequestOptions | Promise<GholaRequestOptions>;
   post?: <T>(response: GholaResponse<T>) => GholaResponse<T> | Promise<GholaResponse<T>>;
+  error?: <T>(error: GholaFetchError<T>) => GholaResponse<T> | Promise<GholaResponse<T>> | GholaFetchError<T> | Promise<GholaFetchError<T>>;
 };

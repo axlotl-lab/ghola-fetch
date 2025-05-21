@@ -181,6 +181,22 @@ export class GholaFetch {
         data,
       };
 
+      // Error handling
+      if (!response.ok) {
+        const defaultError = `HTTP Error: ${response.status} ${response.statusText}`;
+
+        // Log the error
+        if (typeof data == 'object') {
+          console.error(defaultError, JSON.stringify(data));
+        } else {
+          console.error(defaultError, data);
+        }
+
+        // Throw the error with the complete response
+        // Don't make any assumptions about the error data structure
+        throw new GholaFetchError(defaultError, response.status, apiResponse);
+      }
+
       // Apply post processing middlewares
       const processedResponse = await this.applyPostMiddlewares(apiResponse);
 
@@ -196,22 +212,6 @@ export class GholaFetch {
             this.cache.set(cacheKey, processedResponse, ttl);
           }
         }
-      }
-
-      // Generic error handling
-      if (!response.ok) {
-        const defaultError = `HTTP Error: ${response.status} ${response.statusText}`;
-
-        // Log the error
-        if (typeof data == 'object') {
-          console.error(defaultError, JSON.stringify(data));
-        } else {
-          console.error(defaultError, data);
-        }
-
-        // Throw the error with the complete response
-        // Don't make any assumptions about the error data structure
-        throw new GholaFetchError(defaultError, response.status, processedResponse);
       }
 
       return processedResponse;
@@ -233,12 +233,13 @@ export class GholaFetch {
           data: { message: `Request timed out after ${timeout}ms` } as T,
         };
 
-        throw new GholaFetchError('Request timeout', 408, syntheticResponse);
+        const gholaFetchError = new GholaFetchError('Request timeout', 408, syntheticResponse);
+        return this.handleError(gholaFetchError);
       }
 
       // If it's already an ApiClientError (from our own throw), just re-throw it
       if (error instanceof GholaFetchError) {
-        throw error;
+        return this.handleError(error);
       }
 
       // Otherwise it's a network or unexpected error
@@ -252,11 +253,12 @@ export class GholaFetch {
         data: { originalError: error } as T,
       };
 
-      throw new GholaFetchError(
+      const gholaFetchError = new GholaFetchError(
         error instanceof Error ? error.message : String(error),
         0, // Status 0 for network/fetch errors
         syntheticResponse
       );
+      return this.handleError(gholaFetchError);
     }
   }
 
@@ -454,5 +456,43 @@ export class GholaFetch {
     }
 
     return undefined;
+  }
+
+  /**
+   * Processes an error through error middlewares before throwing it
+   * @param error The error to process
+   * @throws The processed error, or a response if middleware converts it
+   */
+  private async handleError<T>(error: GholaFetchError<T>): Promise<GholaResponse<T>> {
+    let processedError = error;
+
+    for (const middleware of this.middlewares) {
+      if (middleware.error) {
+        try {
+          // Middleware can either return a modified error or convert it to a response
+          const result = await middleware.error(processedError);
+
+          // If middleware returns a response instead of an error, return it
+          if (!(result instanceof GholaFetchError)) {
+            return result as GholaResponse<T>;
+          }
+
+          // Otherwise, continue processing with the modified error
+          processedError = result;
+        } catch (middlewareError) {
+          // Continue with other middlewares if one fails
+          console.error('Error in error middleware:', middlewareError);
+
+          // Add the error to the middlewareErrors array
+          if (processedError.middlewareErrors === undefined) {
+            processedError.middlewareErrors = [];
+          }
+          processedError.middlewareErrors.push(middlewareError);
+        }
+      }
+    }
+
+    // If no middleware converted the error to a response, throw the final processed error
+    throw processedError;
   }
 }

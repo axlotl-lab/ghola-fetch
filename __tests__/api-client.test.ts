@@ -1,7 +1,7 @@
 import { InMemoryCache } from '../src/cache/in-memory-cache';
 import { GholaFetch } from '../src/fetch';
 import { GholaFetchError } from '../src/fetch-error';
-import { GholaMiddleware, GholaRequestOptions } from '../src/types';
+import { GholaMiddleware, GholaRequestOptions, GholaResponse } from '../src/types';
 
 // Mock global fetch function
 const mockFetch = jest.fn();
@@ -153,6 +153,90 @@ describe('GholaFetch', () => {
           headers: { 'X-Pre-Middleware': 'true' },
         })
       );
+    });
+
+    test('should not apply post middlewares if an error is thrown', async () => {
+      const postMiddleware = jest.fn(async (response) => ({
+        ...response,
+        data: { ...response.data },
+      }));
+
+      gholaFetch.use({ post: postMiddleware });
+
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      try {
+        await gholaFetch.get('/test-endpoint');
+        fail('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error).toBeInstanceOf(GholaFetchError);
+        expect(error.status).toBe(500);
+        expect(error.response.data).toEqual(responseData);
+        expect(postMiddleware).not.toHaveBeenCalled();
+      }
+    });
+
+    test('should apply error middlewares if an error is thrown (and not converted to a response if is rethrown)', async () => {
+      const errorMiddleware = jest.fn(() => {
+        throw new Error('Error in error middleware');
+      });
+
+      gholaFetch.use({ error: errorMiddleware });
+
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      try {
+        await gholaFetch.get('/test-endpoint');
+        fail('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error).toBeInstanceOf(Error);
+        expect(error.middlewareErrors).toHaveLength(1);
+        expect(error.middlewareErrors[0].message).toBe('Error in error middleware');
+        expect(errorMiddleware).toHaveBeenCalled();
+      }
+    });
+
+    test('should apply error middlewares if an error is thrown (and converted to a response)', async () => {
+      const errorMiddleware = jest.fn(async (error: GholaFetchError<any>) => ({
+        ...error.response,
+        data: { modified: true },
+      } as GholaResponse<any>));
+
+      gholaFetch.use({ error: errorMiddleware });
+
+      const responseData = { data: 'test' };
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => responseData,
+        text: async () => JSON.stringify(responseData),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      try {
+        const response = await gholaFetch.get('/test-endpoint');
+        expect(errorMiddleware).toHaveBeenCalled();
+        expect(response.data).toEqual({ modified: true });
+      } catch (error: any) {
+        fail('Not expecting error to be thrown');
+      }
     });
 
     test('should support method chaining for use() method', async () => {
