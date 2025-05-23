@@ -1,6 +1,6 @@
 import { ICache } from './cache/types';
 import { GholaFetchError } from './fetch-error';
-import { BaseRequestOptions, GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse } from './types';
+import { BaseRequestOptions, ConstructorOptions, GholaMiddleware, GholaRequestOptions, GholaResponse } from './types';
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
@@ -13,7 +13,7 @@ export class GholaFetch {
   // Static instance for direct usage
   private static instance: GholaFetch;
 
-  constructor(options?: GholaOptions) {
+  constructor(options?: ConstructorOptions) {
     this.baseUrl = options?.baseUrl ?? '';
     this.defaultHeaders = options?.headers;
     this.cache = options?.cache;
@@ -47,7 +47,7 @@ export class GholaFetch {
    * @param options The options to configure the default instance
    * @returns The configured instance
    */
-  public static create(options?: GholaOptions): GholaFetch {
+  public static create(options?: ConstructorOptions): GholaFetch {
     GholaFetch.instance = new GholaFetch(options);
     return GholaFetch.instance;
   }

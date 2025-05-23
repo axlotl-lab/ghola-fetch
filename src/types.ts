@@ -1,7 +1,7 @@
 import { ICache } from './cache/types';
 import { GholaFetchError } from './fetch-error';
 
-export type GholaOptions = {
+export type ConstructorOptions = {
   baseUrl?: string;
   headers?: Record<string, string>;
   cache?: ICache;
