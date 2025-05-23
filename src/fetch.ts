@@ -485,7 +485,11 @@ export class GholaFetch {
         return (await response.formData()) as unknown as T;
       } else if (
         contentType.includes('application/octet-stream') ||
-        contentType.includes('image/')
+        contentType.includes('image/') ||
+        contentType.includes('application/pdf') ||
+        contentType.includes('application/zip') ||
+        contentType.includes('application/msword') ||
+        contentType.includes('application/vnd.openxmlformats')
       ) {
         return (await response.blob()) as unknown as T;
       } else if (contentType.includes('application/octet-buffer')) {
