@@ -1,6 +1,6 @@
 import { ICache } from './cache/types';
 import { GholaFetchError } from './fetch-error';
-import { GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse, RequestDeleteOptions, RequestGetOptions, RequestOptions } from './types';
+import { BaseRequestOptions, GholaMiddleware, GholaOptions, GholaRequestOptions, GholaResponse } from './types';
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
@@ -328,7 +328,7 @@ export class GholaFetch {
    */
   public get<T = any>(
     endpoint: string,
-    options: RequestGetOptions = {}
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', options });
   }
@@ -341,7 +341,7 @@ export class GholaFetch {
    */
   public static get<T = any>(
     endpoint: string,
-    options: RequestGetOptions = {}
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().get<T>(endpoint, options);
   }
@@ -354,9 +354,13 @@ export class GholaFetch {
    */
   public post<T = any>(
     endpoint: string,
-    options: RequestOptions = {}
+    body?: any,
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
-    return this.request<T>(endpoint, { method: 'POST', options });
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      options: { ...options, body }
+    });
   }
 
   /**
@@ -367,9 +371,10 @@ export class GholaFetch {
    */
   public static post<T = any>(
     endpoint: string,
-    options: RequestOptions = {}
+    body?: any,
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
-    return GholaFetch.getInstance().post<T>(endpoint, options);
+    return GholaFetch.getInstance().post<T>(endpoint, body, options);
   }
 
   /**
@@ -380,9 +385,13 @@ export class GholaFetch {
    */
   public put<T = any>(
     endpoint: string,
-    options: RequestOptions = {}
+    body?: any,
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
-    return this.request<T>(endpoint, { method: 'PUT', options });
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      options: { ...options, body }
+    });
   }
 
   /**
@@ -393,9 +402,10 @@ export class GholaFetch {
    */
   public static put<T = any>(
     endpoint: string,
-    options: RequestOptions = {}
+    body?: any,
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
-    return GholaFetch.getInstance().put<T>(endpoint, options);
+    return GholaFetch.getInstance().put<T>(endpoint, body, options);
   }
 
   /**
@@ -408,7 +418,7 @@ export class GholaFetch {
   public patch<T = any>(
     endpoint: string,
     body?: any,
-    options: RequestOptions = {}
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
@@ -419,7 +429,7 @@ export class GholaFetch {
   public static patch<T = any>(
     endpoint: string,
     body?: any,
-    options: RequestOptions = {}
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().patch<T>(endpoint, body, options);
   }
@@ -432,7 +442,7 @@ export class GholaFetch {
    */
   public delete<T = any>(
     endpoint: string,
-    options: RequestDeleteOptions = {}
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE', options });
   }
@@ -445,7 +455,7 @@ export class GholaFetch {
    */
   public static delete<T = any>(
     endpoint: string,
-    options: RequestDeleteOptions = {}
+    options: BaseRequestOptions = {}
   ): Promise<GholaResponse<T>> {
     return GholaFetch.getInstance().delete<T>(endpoint, options);
   }

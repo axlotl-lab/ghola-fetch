@@ -388,7 +388,7 @@ describe('GholaFetch', () => {
         headers: new Headers({ 'Content-Type': 'application/json' }),
       });
 
-      const response = await GholaFetch.post('/users', { body: requestBody });
+      const response = await GholaFetch.post('/users', requestBody);
 
       expect(response.status).toBe(201);
       expect(response.data).toEqual(responseData);
@@ -397,7 +397,7 @@ describe('GholaFetch', () => {
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(requestBody),
-        })
+        }),
       );
     });
 
@@ -414,7 +414,7 @@ describe('GholaFetch', () => {
         headers: new Headers({ 'Content-Type': 'application/json' }),
       });
 
-      const response = await GholaFetch.put('/users/1', { body: requestBody });
+      const response = await GholaFetch.put('/users/1', requestBody);
 
       expect(response.status).toBe(200);
       expect(response.data).toEqual(responseData);

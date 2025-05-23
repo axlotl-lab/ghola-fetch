@@ -17,20 +17,18 @@ export type GholaResponse<T> = {
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
-export type RequestOptions = {
+export type BaseRequestOptions = {
   headers?: Record<string, string>;
   timeout?: number;
   params?: Record<string, any>;
-  body?: any;
 }
 
-export type RequestGetOptions = Omit<RequestOptions, 'body'>;
-export type RequestDeleteOptions = Omit<RequestOptions, 'body'>;
+export type RequestWithBodyOptions = BaseRequestOptions & { body?: any; };
 
 export type GholaRequestOptions = {
   baseUrl?: string;
   method?: HttpMethod;
-  options?: RequestOptions;
+  options?: RequestWithBodyOptions;
   cache?: { keyPrefix?: string };
 };
 
