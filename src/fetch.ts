@@ -148,8 +148,10 @@ export class GholaFetch {
     endpoint: string,
     options: GholaRequestOptions = {}
   ): Promise<GholaResponse<T>> {
-    const headers = { ...this.defaultHeaders, ...options.options?.headers };
-
+    const headers = Object.fromEntries(
+      Object.entries({ ...this.defaultHeaders, ...options.options?.headers })
+        .filter(([_, value]) => value !== null && value !== undefined)
+    );
     // Apply pre processing middlewares
     const processedOptions = await this.applyPreMiddlewares({
       ...options,
@@ -433,7 +435,6 @@ export class GholaFetch {
 
       if (!contentType) {
         // Handle case where there is no Content-Type header
-        console.warn('No Content-Type header in response');
         return (await response.text()) as unknown as T;
       }
 
