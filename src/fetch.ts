@@ -399,6 +399,32 @@ export class GholaFetch {
   }
 
   /**
+ * Makes a PATCH request to the API
+ * @param endpoint The API endpoint
+ * @param body The request body
+ * @param options The request options
+ * @returns A promise that resolves to the API response
+ */
+  public patch<T = any>(
+    endpoint: string,
+    body?: any,
+    options: RequestOptions = {}
+  ): Promise<GholaResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      options: { ...options, body }
+    });
+  }
+
+  public static patch<T = any>(
+    endpoint: string,
+    body?: any,
+    options: RequestOptions = {}
+  ): Promise<GholaResponse<T>> {
+    return GholaFetch.getInstance().patch<T>(endpoint, body, options);
+  }
+
+  /**
    * Makes a DELETE request to the API
    * @param endpoint The API endpoint
    * @param options The request options
