@@ -186,7 +186,7 @@ describe('GholaFetch', () => {
 
     test('should apply error middlewares if an error is thrown (and not converted to a response if is rethrown)', async () => {
       const errorMiddleware = jest.fn(() => {
-        throw new Error('Error in error middleware');
+        throw new Error('NEW_ERROR');
       });
 
       gholaFetch.use({ error: errorMiddleware });
@@ -206,8 +206,7 @@ describe('GholaFetch', () => {
         fail('Expected error to be thrown');
       } catch (error: any) {
         expect(error).toBeInstanceOf(Error);
-        expect(error.middlewareErrors).toHaveLength(1);
-        expect(error.middlewareErrors[0].message).toBe('Error in error middleware');
+        expect(error.message).toBe('NEW_ERROR');
         expect(errorMiddleware).toHaveBeenCalled();
       }
     });

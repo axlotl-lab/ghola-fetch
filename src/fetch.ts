@@ -553,34 +553,25 @@ export class GholaFetch {
     for (const middleware of this.middlewares) {
       if (middleware.error) {
         try {
-          // Middleware can either return a modified error or convert it to a response
+          // Middleware can either throw a modified error or convert it to a response
           const result = await middleware.error(processedError);
 
           if (result === undefined) {
             continue;
           }
 
-          // If middleware returns a response instead of an error, return it
           if (!(result instanceof GholaFetchError)) {
             return result as GholaResponse<T>;
           }
 
-          // Otherwise, continue processing with the modified error
           processedError = result;
         } catch (middlewareError) {
-          // Continue with other middlewares if one fails
-          console.error('Error in error middleware:', middlewareError);
-
-          // Add the error to the middlewareErrors array
-          if (processedError.middlewareErrors === undefined) {
-            processedError.middlewareErrors = [];
-          }
-          processedError.middlewareErrors.push(middlewareError);
+          console.error('Original error:', processedError);
+          throw middlewareError;
         }
       }
     }
 
-    // If no middleware converted the error to a response, throw the final processed error
     throw processedError;
   }
 }
