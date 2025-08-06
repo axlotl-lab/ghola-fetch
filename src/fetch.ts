@@ -4,7 +4,7 @@ import { BaseRequestOptions, ConstructorOptions, GholaMiddleware, GholaRequestOp
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
-  protected defaultHeaders: Record<string, string> | undefined;
+  protected defaultHeaders: Headers | undefined;
   private middlewares: GholaMiddleware[] = [];
   private cache?: ICache;
   private isNode: boolean;
@@ -148,10 +148,24 @@ export class GholaFetch {
     endpoint: string,
     options: GholaRequestOptions = {}
   ): Promise<GholaResponse<T>> {
-    const headers = Object.fromEntries(
-      Object.entries({ ...this.defaultHeaders, ...options.options?.headers })
-        .filter(([_, value]) => value !== null && value !== undefined)
-    );
+    const headers = new Headers();
+
+    if (this.defaultHeaders) {
+      Object.entries(this.defaultHeaders).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          headers.set(key, value);
+        }
+      });
+    }
+
+    if (options.options?.headers) {
+      Object.entries(options.options.headers).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          headers.set(key, value);
+        }
+      });
+    }
+
     // Apply pre processing middlewares
     const processedOptions = await this.applyPreMiddlewares({
       ...options,
@@ -177,7 +191,7 @@ export class GholaFetch {
 
     const body = this.processBody(
       processedOptions.options?.body,
-      processedOptions.options?.headers ?? {}
+      processedOptions.options?.headers ?? new Headers()
     );
 
     // Configure timeout only if AbortController is available
@@ -512,11 +526,11 @@ export class GholaFetch {
    * @param headers The request headers
    * @returns The processed body
    */
-  private processBody(body: any, headers: Record<string, string>): any {
+  private processBody(body: any, headers: Headers): any {
     if (body instanceof FormData) {
       if (!this.isNode) {
         // Let the browser handle the Content-Type
-        delete headers['Content-Type'];
+        headers.delete('Content-Type');
       }
       // In Node.js, FormData will set its own Content-Type with boundary
       return body;
@@ -526,7 +540,7 @@ export class GholaFetch {
     if (body instanceof File || body instanceof Blob) {
       const formData = new FormData();
       formData.append('file', body);
-      delete headers['Content-Type'];
+      headers.delete('Content-Type');
       return formData;
     }
 
@@ -535,7 +549,9 @@ export class GholaFetch {
     }
 
     if (body !== undefined) {
-      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
       return JSON.stringify(body);
     }
 

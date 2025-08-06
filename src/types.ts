@@ -3,7 +3,7 @@ import { GholaFetchError } from './fetch-error';
 
 export type ConstructorOptions = {
   baseUrl?: string;
-  headers?: Record<string, string>;
+  headers?: Headers;
   cache?: ICache;
   timeout?: number;
 };
@@ -18,7 +18,7 @@ export type GholaResponse<T> = {
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export type BaseRequestOptions = {
-  headers?: Record<string, string>;
+  headers?: Headers;
   timeout?: number;
   params?: Record<string, any>;
 }

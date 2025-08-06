@@ -265,7 +265,7 @@ describe('GholaFetch', () => {
       const preMiddleware = jest.fn(async (options: GholaRequestOptions) => ({
         ...options,
         baseUrl: 'https://from-pre-middleware.com',
-        options: { ...options.options, headers: { 'X-Pre-Middleware': 'true' } },
+        options: { ...options.options, headers: new Headers({ 'X-Pre-Middleware': 'true' }) },
       }));
 
       localApiClient.use({ pre: preMiddleware });
