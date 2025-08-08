@@ -21,6 +21,7 @@ export type BaseRequestOptions = {
   headers?: Headers;
   timeout?: number;
   params?: Record<string, any>;
+  signal?: AbortSignal;
 }
 
 export type RequestWithBodyOptions = BaseRequestOptions & { body?: any; };

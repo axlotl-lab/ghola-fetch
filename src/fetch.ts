@@ -194,15 +194,40 @@ export class GholaFetch {
       processedOptions.options?.headers ?? new Headers()
     );
 
-    // Configure timeout only if AbortController is available
+    // Configure timeout and external AbortController signal
     let controller: AbortController | undefined;
     let signal: AbortSignal | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const timeout = processedOptions.options?.timeout ?? this.defaultTimeout;
+    const externalSignal = processedOptions.options?.signal;
 
-    // Only configure timeout if it's specified and AbortController is available
-    if (typeof AbortController !== 'undefined' && timeout) {
+    // Handle external AbortSignal
+    if (externalSignal) {
+      signal = externalSignal;
+      
+      // If we also have a timeout, we need to create a combined signal
+      if (typeof AbortController !== 'undefined' && timeout) {
+        controller = new AbortController();
+        
+        // Abort if external signal is already aborted
+        if (externalSignal.aborted) {
+          controller.abort();
+        } else {
+          // Listen to external signal
+          externalSignal.addEventListener('abort', () => {
+            controller?.abort();
+          }, { once: true });
+        }
+        
+        signal = controller.signal;
+        
+        timeoutId = setTimeout(() => {
+          controller?.abort();
+        }, timeout);
+      }
+    } else if (typeof AbortController !== 'undefined' && timeout) {
+      // Only timeout, no external signal
       controller = new AbortController();
       signal = controller.signal;
 
