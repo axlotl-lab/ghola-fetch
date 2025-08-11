@@ -1,6 +1,6 @@
 import { ICache } from './cache/types';
 import { GholaFetchError } from './fetch-error';
-import { BaseRequestOptions, ConstructorOptions, GholaMiddleware, GholaRequestOptions, GholaResponse } from './types';
+import { BaseRequestOptions, ConstructorOptions, GholaMiddleware, GholaRequest, GholaRequestOptions, GholaResponse, RequestRetryFunction } from './types';
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
@@ -205,11 +205,11 @@ export class GholaFetch {
     // Handle external AbortSignal
     if (externalSignal) {
       signal = externalSignal;
-      
+
       // If we also have a timeout, we need to create a combined signal
       if (typeof AbortController !== 'undefined' && timeout) {
         controller = new AbortController();
-        
+
         // Abort if external signal is already aborted
         if (externalSignal.aborted) {
           controller.abort();
@@ -219,9 +219,9 @@ export class GholaFetch {
             controller?.abort();
           }, { once: true });
         }
-        
+
         signal = controller.signal;
-        
+
         timeoutId = setTimeout(() => {
           controller?.abort();
         }, timeout);
@@ -302,6 +302,8 @@ export class GholaFetch {
     } catch (error: any) {
       // This block captures both network errors AND API errors (!response.ok)
 
+      const request: GholaRequest = { endpoint, options: processedOptions };
+
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -318,12 +320,12 @@ export class GholaFetch {
         };
 
         const gholaFetchError = new GholaFetchError('Request timeout', 408, syntheticResponse);
-        return this.handleError(gholaFetchError);
+        return this.handleError(gholaFetchError, request);
       }
 
       // If it's already an ApiClientError (from our own throw), just re-throw it
       if (error instanceof GholaFetchError) {
-        return this.handleError(error);
+        return this.handleError(error, request);
       }
 
       // Otherwise it's a network or unexpected error
@@ -342,7 +344,8 @@ export class GholaFetch {
         0, // Status 0 for network/fetch errors
         syntheticResponse
       );
-      return this.handleError(gholaFetchError);
+
+      return this.handleError(gholaFetchError, request);
     }
   }
 
@@ -588,14 +591,22 @@ export class GholaFetch {
    * @param error The error to process
    * @throws The processed error, or a response if middleware converts it
    */
-  private async handleError<T>(error: GholaFetchError<T>): Promise<GholaResponse<T>> {
+  private async handleError<T>(error: GholaFetchError<T>, request: GholaRequest): Promise<GholaResponse<T>> {
     let processedError = error;
+
+    const retry: RequestRetryFunction = async (retryRequest: GholaRequest) => {
+      return this.request(retryRequest.endpoint, retryRequest.options);
+    };
 
     for (const middleware of this.middlewares) {
       if (middleware.error) {
         try {
           // Middleware can either throw a modified error or convert it to a response
-          const result = await middleware.error(processedError);
+          const result = await middleware.error(
+            processedError,
+            request,
+            retry
+          );
 
           if (result === undefined) {
             continue;

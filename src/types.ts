@@ -33,8 +33,15 @@ export type GholaRequestOptions = {
   cache?: { keyPrefix?: string };
 };
 
+export type GholaRequest = {
+  endpoint: string;
+  options: GholaRequestOptions;
+};
+
+export type RequestRetryFunction = (request: GholaRequest) => Promise<GholaResponse<any>>;
+
 export type GholaMiddleware = {
   pre?: (options: GholaRequestOptions) => GholaRequestOptions | Promise<GholaRequestOptions>;
   post?: <T>(response: GholaResponse<T>) => GholaResponse<T> | Promise<GholaResponse<T>>;
-  error?: <T>(error: GholaFetchError<T>) => void | GholaResponse<T> | Promise<GholaResponse<T>>;
+  error?: <T>(error: GholaFetchError<T>, request: GholaRequest, retry: RequestRetryFunction) => void | GholaResponse<T> | Promise<GholaResponse<T>>;
 };
