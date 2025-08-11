@@ -623,7 +623,7 @@ describe('GholaFetch', () => {
       expect(mockFetch).toHaveBeenCalledTimes(4);
 
       // First request should now hit the cache
-      const response1Again2 = await gholaFetch.get('/test-endpoint1');
+      await gholaFetch.get('/test-endpoint1');
       expect(response1.data).toEqual(responseData1);
       expect(mockFetch).toHaveBeenCalledTimes(4); // No new fetch call
 
