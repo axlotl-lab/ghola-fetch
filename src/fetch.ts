@@ -198,6 +198,7 @@ export class GholaFetch {
     let controller: AbortController | undefined;
     let signal: AbortSignal | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let abortHandler: EventListenerOrEventListenerObject | undefined;
 
     const timeout = processedOptions.options?.timeout ?? this.defaultTimeout;
     const externalSignal = processedOptions.options?.signal;
@@ -215,9 +216,10 @@ export class GholaFetch {
           controller.abort();
         } else {
           // Listen to external signal
-          externalSignal.addEventListener('abort', () => {
+          abortHandler = () => {
             controller?.abort();
-          }, { once: true });
+          }
+          externalSignal.addEventListener('abort', abortHandler, { once: true });
         }
 
         signal = controller.signal;
@@ -346,6 +348,14 @@ export class GholaFetch {
       );
 
       return this.handleError(gholaFetchError, request);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+      if (externalSignal && abortHandler) {
+        externalSignal.removeEventListener('abort', abortHandler);
+      }
     }
   }
 
