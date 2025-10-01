@@ -102,30 +102,40 @@ export class GholaFetch {
   }
 
   /**
- * Builds URL with query parameters
- * @param baseUrl The base URL without query parameters
- * @param params The query parameters object
- * @returns URL with query parameters
- */
-  private buildUrl(baseUrl: string, params?: Record<string, any>): string {
-    if (!params || Object.keys(params).length === 0) {
+   * Builds URL with query parameters
+   * @param baseUrl The base URL without query parameters
+   * @param params The query parameters object or URLSearchParams
+   * @returns URL with query parameters
+   */
+  private buildUrl(baseUrl: string, params?: Record<string, any> | URLSearchParams): string {
+    if (!params) {
       return baseUrl;
     }
 
-    // Create an instance of URLSearchParams for proper encoding
-    const searchParams = new URLSearchParams();
+    let searchParams: URLSearchParams;
 
-    // Add all parameters that are not undefined to the search params
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
-        // Handle arrays and objects by serializing them to JSON if needed
-        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-          searchParams.append(key, JSON.stringify(value));
-        } else {
-          searchParams.append(key, String(value));
-        }
+    // if params is already a URLSearchParams, use it directly
+    if (params instanceof URLSearchParams) {
+      searchParams = params;
+    } else {
+      if (Object.keys(params).length === 0) {
+        return baseUrl;
       }
-    });
+
+      searchParams = new URLSearchParams();
+
+      // Add all parameters that are not undefined to the search params
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          // Handle arrays and objects by serializing them to JSON if needed
+          if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+            searchParams.append(key, JSON.stringify(value));
+          } else {
+            searchParams.append(key, String(value));
+          }
+        }
+      });
+    }
 
     const queryString = searchParams.toString();
     if (queryString) {

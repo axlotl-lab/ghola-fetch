@@ -20,7 +20,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 export type BaseRequestOptions = {
   headers?: Headers;
   timeout?: number;
-  params?: Record<string, any>;
+  params?: URLSearchParams | Record<string, any>;
   signal?: AbortSignal;
 }
 
