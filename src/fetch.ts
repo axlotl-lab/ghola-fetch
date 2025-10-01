@@ -161,7 +161,7 @@ export class GholaFetch {
     const headers = new Headers();
 
     if (this.defaultHeaders) {
-      Object.entries(this.defaultHeaders).forEach(([key, value]) => {
+      this.defaultHeaders.forEach((value, key) => {
         if (value !== null && value !== undefined) {
           headers.set(key, value);
         }
@@ -169,7 +169,7 @@ export class GholaFetch {
     }
 
     if (options.options?.headers) {
-      Object.entries(options.options.headers).forEach(([key, value]) => {
+      options.options.headers.forEach((value, key) => {
         if (value !== null && value !== undefined) {
           headers.set(key, value);
         }
