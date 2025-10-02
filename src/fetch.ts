@@ -274,6 +274,8 @@ export class GholaFetch {
         headers: response.headers,
         status: response.status,
         statusText: response.statusText,
+        redirected: response.redirected,
+        url: response.url,
         data,
       };
 

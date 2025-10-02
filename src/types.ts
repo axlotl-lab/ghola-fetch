@@ -12,6 +12,8 @@ export type GholaResponse<T> = {
   headers: Headers;
   status: number;
   statusText: string;
+  redirected?: boolean;
+  url?: string;
   data: T;
 };
 
