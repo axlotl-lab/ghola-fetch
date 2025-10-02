@@ -278,7 +278,7 @@ export class GholaFetch {
       };
 
       // Error handling
-      if (!response.ok) {
+      if (!response.ok && response.status >= 400) {
         const defaultError = `HTTP Error: ${response.status} ${response.statusText}`;
 
         // Log the error
