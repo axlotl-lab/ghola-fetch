@@ -24,6 +24,7 @@ export type BaseRequestOptions = {
   timeout?: number;
   params?: URLSearchParams | Record<string, any>;
   signal?: AbortSignal;
+  redirect?: "manual" | "follow" | "error";
 }
 
 export type RequestWithBodyOptions = BaseRequestOptions & { body?: any; };

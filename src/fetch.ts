@@ -254,12 +254,10 @@ export class GholaFetch {
       const fetchOptions: RequestInit = {
         method: processedOptions.method || 'GET',
         headers: processedOptions.options?.headers,
+        redirect: processedOptions.options?.redirect,
         body,
+        signal,
       };
-
-      if (signal) {
-        fetchOptions.signal = signal;
-      }
 
       const response = await fetch(url, fetchOptions);
 
