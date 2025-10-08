@@ -15,6 +15,7 @@ export type GholaResponse<T> = {
   redirected?: boolean;
   url?: string;
   data: T;
+  raw?: Response;
 };
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -25,6 +26,7 @@ export type BaseRequestOptions = {
   params?: URLSearchParams | Record<string, any>;
   signal?: AbortSignal;
   redirect?: "manual" | "follow" | "error";
+  rawResponse?: boolean;
 }
 
 export type RequestWithBodyOptions = BaseRequestOptions & { body?: any; };

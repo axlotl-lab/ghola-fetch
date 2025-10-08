@@ -265,27 +265,31 @@ export class GholaFetch {
         clearTimeout(timeoutId);
       }
 
-      // Try to get the response body, even if it's not OK
-      const data = await this.getBody<T>(response);
+      const isRaw = processedOptions.options?.rawResponse === true;
 
+      // is raw response is requested, return the raw response.
+      // if not, try to get the response body, even if it's not OK
       const apiResponse: GholaResponse<T> = {
         headers: response.headers,
         status: response.status,
         statusText: response.statusText,
         redirected: response.redirected,
         url: response.url,
-        data,
+        data: isRaw ? (null as any) : await this.getBody<T>(response),
+        raw: isRaw ? response : undefined,
       };
 
       // Error handling
       if (!response.ok && response.status >= 400) {
         const defaultError = `HTTP Error: ${response.status} ${response.statusText}`;
 
-        // Log the error
-        if (typeof data == 'object') {
-          console.error(defaultError, JSON.stringify(data));
-        } else {
-          console.error(defaultError, data);
+        if (!isRaw) {
+          // Log the error, only if it's not a raw response
+          if (typeof apiResponse.data == 'object') {
+            console.error(defaultError, JSON.stringify(apiResponse.data));
+          } else {
+            console.error(defaultError, apiResponse.data);
+          }
         }
 
         // Throw the error with the complete response
@@ -297,7 +301,7 @@ export class GholaFetch {
       const processedResponse = await this.applyPostMiddlewares(apiResponse);
 
       // Cache handling (now only cache successful responses)
-      if (response.ok && this.cache) {
+      if (response.ok && this.cache && !isRaw) {
         const cacheControl = response.headers.get('Cache-Control');
         let ttl: number | undefined;
 
