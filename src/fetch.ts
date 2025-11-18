@@ -114,7 +114,6 @@ export class GholaFetch {
 
     let searchParams: URLSearchParams;
 
-    // if params is already a URLSearchParams, use it directly
     if (params instanceof URLSearchParams) {
       searchParams = params;
     } else {
@@ -124,13 +123,20 @@ export class GholaFetch {
 
       searchParams = new URLSearchParams();
 
-      // Add all parameters that are not undefined to the search params
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined) {
-          // Handle arrays and objects by serializing them to JSON if needed
-          if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+          // Handle arrays: append each item with [] suffix
+          if (Array.isArray(value)) {
+            value.forEach(item => {
+              searchParams.append(`${key}[]`, String(item));
+            });
+          }
+          // Handle objects: serialize to JSON
+          else if (typeof value === 'object' && value !== null) {
             searchParams.append(key, JSON.stringify(value));
-          } else {
+          }
+          // Handle primitives
+          else {
             searchParams.append(key, String(value));
           }
         }
@@ -139,7 +145,6 @@ export class GholaFetch {
 
     const queryString = searchParams.toString();
     if (queryString) {
-      // Check if the URL already has query parameters
       return baseUrl.includes('?')
         ? `${baseUrl}&${queryString}`
         : `${baseUrl}?${queryString}`;
