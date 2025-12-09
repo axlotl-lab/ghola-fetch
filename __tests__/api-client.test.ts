@@ -703,5 +703,99 @@ describe('GholaFetch', () => {
       expect(response2.data).toEqual(responseData);
       expect(mockFetch).toHaveBeenCalledTimes(1); // No additional fetch call
     });
+
+    test('should respect Vary header and cache different responses for different header values', async () => {
+      const varyCache = new InMemoryCache({ maxCapacity: 10 });
+      gholaFetch = new GholaFetch({
+        baseUrl: 'https://api.example.com',
+        cache: varyCache,
+      });
+
+      const responseDataEs = { data: 'Hola' };
+      const responseDataEn = { data: 'Hello' };
+
+      // First request with X-Lang: es
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseDataEs,
+        headers: new Headers({
+          'Content-Type': 'application/json',
+          'Cache-Control': 'max-age=10',
+          'Vary': 'X-Lang'
+        }),
+      });
+
+      const headers1 = new Headers({ 'X-Lang': 'es' });
+      const response1 = await gholaFetch.get('/greeting', { headers: headers1 });
+      expect(response1.data).toEqual(responseDataEs);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second request with same X-Lang: es should hit cache
+      const response2 = await gholaFetch.get('/greeting', { headers: headers1 });
+      expect(response2.data).toEqual(responseDataEs);
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Cache hit
+
+      // Third request with different X-Lang: en should fetch new response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseDataEn,
+        headers: new Headers({
+          'Content-Type': 'application/json',
+          'Cache-Control': 'max-age=10',
+          'Vary': 'X-Lang'
+        }),
+      });
+
+      const headers2 = new Headers({ 'X-Lang': 'en' });
+      const response3 = await gholaFetch.get('/greeting', { headers: headers2 });
+      expect(response3.data).toEqual(responseDataEn);
+      expect(mockFetch).toHaveBeenCalledTimes(2); // New fetch
+
+      // Fourth request with X-Lang: en should hit cache
+      const response4 = await gholaFetch.get('/greeting', { headers: headers2 });
+      expect(response4.data).toEqual(responseDataEn);
+      expect(mockFetch).toHaveBeenCalledTimes(2); // Cache hit
+
+      // Fifth request with X-Lang: es should still hit the original cache
+      const response5 = await gholaFetch.get('/greeting', { headers: headers1 });
+      expect(response5.data).toEqual(responseDataEs);
+      expect(mockFetch).toHaveBeenCalledTimes(2); // Cache hit
+    });
+
+    test('should not cache responses when Vary: *', async () => {
+      const varyStarCache = new InMemoryCache({ maxCapacity: 10 });
+      gholaFetch = new GholaFetch({
+        baseUrl: 'https://api.example.com',
+        cache: varyStarCache,
+      });
+
+      const responseData = { data: 'dynamic' };
+
+      // Response with Vary: *
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => responseData,
+        headers: new Headers({
+          'Content-Type': 'application/json',
+          'Cache-Control': 'max-age=10',
+          'Vary': '*'
+        }),
+      });
+
+      const response1 = await gholaFetch.get('/dynamic-endpoint');
+      expect(response1.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second request should NOT use cache (Vary: * means uncacheable)
+      const response2 = await gholaFetch.get('/dynamic-endpoint');
+      expect(response2.data).toEqual(responseData);
+      expect(mockFetch).toHaveBeenCalledTimes(2); // New fetch, no cache
+    });
   });
 });

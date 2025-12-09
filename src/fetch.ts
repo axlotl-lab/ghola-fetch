@@ -13,6 +13,75 @@ export class GholaFetch {
   // Static instance for direct usage
   private static instance: GholaFetch;
 
+  /**
+   * Simple hash function for cache keys
+   * @param str The string to hash
+   * @returns A hashed string
+   */
+  private simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36);
+  }
+
+  /**
+   * Builds a cache key including Vary headers
+   * @param url The request URL
+   * @param varyHeader The Vary header value from response
+   * @param requestHeaders The headers from the request
+   * @param keyPrefix Optional cache key prefix
+   * @returns The cache key
+   */
+  private buildCacheKey(
+    url: string,
+    varyHeader: string | null,
+    requestHeaders: Headers,
+    keyPrefix?: string
+  ): string {
+    const prefix = keyPrefix ?? '';
+    const baseKey = `${prefix}-${url}`;
+
+    // If no Vary header, use simple key
+    if (!varyHeader) {
+      return baseKey;
+    }
+
+    // Vary: * means response varies on factors not expressible in headers
+    // Should not be cached
+    if (varyHeader.trim() === '*') {
+      return baseKey;
+    }
+
+    // Parse Vary header: split by comma, normalize (trim + lowercase), and sort
+    const varyHeaders = varyHeader
+      .split(',')
+      .map(h => h.trim().toLowerCase())
+      .filter(h => h.length > 0)
+      .sort();
+
+    // Build a string with header:value pairs
+    const varyParts: string[] = [];
+    for (const headerName of varyHeaders) {
+      const headerValue = requestHeaders.get(headerName);
+      if (headerValue) {
+        varyParts.push(`${headerName}:${headerValue}`);
+      }
+    }
+
+    // If no vary headers matched, use simple key
+    if (varyParts.length === 0) {
+      return baseKey;
+    }
+
+    // Hash the vary parts to keep key size manageable
+    const varyHash = this.simpleHash(varyParts.join(','));
+    return `${baseKey}-${varyHash}`;
+  }
+
   constructor(options?: ConstructorOptions) {
     this.baseUrl = options?.baseUrl ?? '';
     this.defaultHeaders = options?.headers;
@@ -194,7 +263,25 @@ export class GholaFetch {
       url = this.buildUrl(url, processedOptions.options.params);
     }
 
-    const cacheKey = `${processedOptions.cache?.keyPrefix ?? ''}-${url}`;
+    // First, try to get the Vary header from a previous response for this URL
+    const baseKeyForVary = `${processedOptions.cache?.keyPrefix ?? ''}-${url}`;
+    const varyMetadataKey = `${baseKeyForVary}-vary-metadata`;
+
+    let varyHeader: string | null = null;
+    if (this.cache) {
+      const varyMetadata = this.cache.get<{ vary: string }>(varyMetadataKey);
+      if (varyMetadata?.vary) {
+        varyHeader = varyMetadata.vary;
+      }
+    }
+
+    // Build cache key with Vary headers if available
+    const cacheKey = this.buildCacheKey(
+      url,
+      varyHeader,
+      processedOptions.options?.headers ?? new Headers(),
+      processedOptions.cache?.keyPrefix
+    );
 
     // Check cache for existing response
     if (this.cache) {
@@ -308,13 +395,36 @@ export class GholaFetch {
       // Cache handling (now only cache successful responses)
       if (response.ok && this.cache && !isRaw) {
         const cacheControl = response.headers.get('Cache-Control');
+        const responseVaryHeader = response.headers.get('Vary');
         let ttl: number | undefined;
 
         if (cacheControl) {
           const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
           if (maxAgeMatch) {
             ttl = parseInt(maxAgeMatch[1], 10) * 1000; // Convert to milliseconds
-            this.cache.set(cacheKey, processedResponse, ttl);
+
+            // Don't cache if Vary: *
+            if (responseVaryHeader && responseVaryHeader.trim() === '*') {
+              // Vary: * means the response varies based on factors not expressible in headers
+              // Should not be cached
+              return processedResponse;
+            }
+
+            // Build the correct cache key with Vary header from response
+            const finalCacheKey = this.buildCacheKey(
+              url,
+              responseVaryHeader,
+              processedOptions.options?.headers ?? new Headers(),
+              processedOptions.cache?.keyPrefix
+            );
+
+            // Store the response with the correct key
+            this.cache.set(finalCacheKey, processedResponse, ttl);
+
+            // Store Vary metadata for future requests to this URL
+            if (responseVaryHeader) {
+              this.cache.set(varyMetadataKey, { vary: responseVaryHeader }, ttl);
+            }
           }
         }
       }
