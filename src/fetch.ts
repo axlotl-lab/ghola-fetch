@@ -1,6 +1,14 @@
 import { ICache } from './cache/types';
 import { GholaFetchError } from './fetch-error';
-import { BaseRequestOptions, ConstructorOptions, GholaMiddleware, GholaRequest, GholaRequestOptions, GholaResponse, RequestRetryFunction } from './types';
+import {
+  BaseRequestOptions,
+  ConstructorOptions,
+  GholaMiddleware,
+  GholaRequest,
+  GholaRequestOptions,
+  GholaResponse,
+  RequestRetryFunction,
+} from './types';
 
 export class GholaFetch {
   protected baseUrl: string | undefined;
@@ -22,7 +30,7 @@ export class GholaFetch {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32bit integer
     }
     return Math.abs(hash).toString(36);
@@ -59,8 +67,8 @@ export class GholaFetch {
     // Parse Vary header: split by comma, normalize (trim + lowercase), and sort
     const varyHeaders = varyHeader
       .split(',')
-      .map(h => h.trim().toLowerCase())
-      .filter(h => h.length > 0)
+      .map((h) => h.trim().toLowerCase())
+      .filter((h) => h.length > 0)
       .sort();
 
     // Build a string with header:value pairs
@@ -93,11 +101,15 @@ export class GholaFetch {
 
     // Verify that the fetch API is available and that AbortController is supported
     if (typeof fetch !== 'function') {
-      console.warn('GholaFetch: fetch API is not available in this environmnet. The library may not work correctly.');
+      console.warn(
+        'GholaFetch: fetch API is not available in this environmnet. The library may not work correctly.'
+      );
     }
 
     if (typeof AbortController === 'undefined') {
-      console.warn('GholaFetch: AbortController is not available in this environment. Timeouts may not work correctly.');
+      console.warn(
+        'GholaFetch: AbortController is not available in this environment. Timeouts may not work correctly.'
+      );
     }
   }
 
@@ -196,7 +208,7 @@ export class GholaFetch {
         if (value !== undefined) {
           // Handle arrays: append each item with [] suffix
           if (Array.isArray(value)) {
-            value.forEach(item => {
+            value.forEach((item) => {
               searchParams.append(`${key}[]`, String(item));
             });
           }
@@ -214,9 +226,7 @@ export class GholaFetch {
 
     const queryString = searchParams.toString();
     if (queryString) {
-      return baseUrl.includes('?')
-        ? `${baseUrl}&${queryString}`
-        : `${baseUrl}?${queryString}`;
+      return baseUrl.includes('?') ? `${baseUrl}&${queryString}` : `${baseUrl}?${queryString}`;
     }
 
     return baseUrl;
@@ -320,7 +330,7 @@ export class GholaFetch {
           // Listen to external signal
           abortHandler = () => {
             controller?.abort();
-          }
+          };
           externalSignal.addEventListener('abort', abortHandler, { once: true });
         }
 
@@ -339,7 +349,9 @@ export class GholaFetch {
         controller?.abort();
       }, timeout);
     } else if (timeout && typeof AbortController === 'undefined') {
-      console.warn('GholaFetch: Is not possible to set timeout because AbortController is not available in this environment.');
+      console.warn(
+        'GholaFetch: Is not possible to set timeout because AbortController is not available in this environment.'
+      );
     }
 
     try {
@@ -540,7 +552,7 @@ export class GholaFetch {
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
-      options: { ...options, body }
+      options: { ...options, body },
     });
   }
 
@@ -571,7 +583,7 @@ export class GholaFetch {
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
-      options: { ...options, body }
+      options: { ...options, body },
     });
   }
 
@@ -590,12 +602,12 @@ export class GholaFetch {
   }
 
   /**
- * Makes a PATCH request to the API
- * @param endpoint The API endpoint
- * @param body The request body
- * @param options The request options
- * @returns A promise that resolves to the API response
- */
+   * Makes a PATCH request to the API
+   * @param endpoint The API endpoint
+   * @param body The request body
+   * @param options The request options
+   * @returns A promise that resolves to the API response
+   */
   public patch<T = any>(
     endpoint: string,
     body?: any,
@@ -603,7 +615,7 @@ export class GholaFetch {
   ): Promise<GholaResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
-      options: { ...options, body }
+      options: { ...options, body },
     });
   }
 
@@ -730,7 +742,10 @@ export class GholaFetch {
    * @param error The error to process
    * @throws The processed error, or a response if middleware converts it
    */
-  private async handleError<T>(error: GholaFetchError<T>, request: GholaRequest): Promise<GholaResponse<T>> {
+  private async handleError<T>(
+    error: GholaFetchError<T>,
+    request: GholaRequest
+  ): Promise<GholaResponse<T>> {
     let processedError = error;
 
     const retry: RequestRetryFunction = async (retryRequest: GholaRequest) => {
@@ -741,11 +756,7 @@ export class GholaFetch {
       if (middleware.error) {
         try {
           // Middleware can either throw a modified error or convert it to a response
-          const result = await middleware.error(
-            processedError,
-            request,
-            retry
-          );
+          const result = await middleware.error(processedError, request, retry);
 
           if (result === undefined) {
             continue;

@@ -25,11 +25,11 @@ export type BaseRequestOptions = {
   timeout?: number;
   params?: URLSearchParams | Record<string, any>;
   signal?: AbortSignal;
-  redirect?: "manual" | "follow" | "error";
+  redirect?: 'manual' | 'follow' | 'error';
   rawResponse?: boolean;
-}
+};
 
-export type RequestWithBodyOptions = BaseRequestOptions & { body?: any; };
+export type RequestWithBodyOptions = BaseRequestOptions & { body?: any };
 
 export type GholaRequestOptions = {
   baseUrl?: string;
@@ -48,5 +48,9 @@ export type RequestRetryFunction = (request: GholaRequest) => Promise<GholaRespo
 export type GholaMiddleware = {
   pre?: (options: GholaRequestOptions) => GholaRequestOptions | Promise<GholaRequestOptions>;
   post?: <T>(response: GholaResponse<T>) => GholaResponse<T> | Promise<GholaResponse<T>>;
-  error?: <T>(error: GholaFetchError<T>, request: GholaRequest, retry: RequestRetryFunction) => void | GholaResponse<T> | Promise<GholaResponse<T>>;
+  error?: <T>(
+    error: GholaFetchError<T>,
+    request: GholaRequest,
+    retry: RequestRetryFunction
+  ) => void | GholaResponse<T> | Promise<GholaResponse<T>>;
 };
