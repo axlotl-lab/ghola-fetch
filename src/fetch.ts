@@ -260,101 +260,111 @@ export class GholaFetch {
       });
     }
 
-    // Apply pre processing middlewares
-    const processedOptions = await this.applyPreMiddlewares({
-      ...options,
-      options: { ...options.options, headers },
-    });
-
-    let url = `${(this.baseUrl || processedOptions.baseUrl) ?? ''}${endpoint}`;
-
-    // Apply query parameters if provided
-    if (processedOptions.options?.params) {
-      url = this.buildUrl(url, processedOptions.options.params);
-    }
-
-    // First, try to get the Vary header from a previous response for this URL
-    const baseKeyForVary = `${processedOptions.cache?.keyPrefix ?? ''}-${url}`;
-    const varyMetadataKey = `${baseKeyForVary}-vary-metadata`;
-
-    let varyHeader: string | null = null;
-    if (this.cache) {
-      const varyMetadata = this.cache.get<{ vary: string }>(varyMetadataKey);
-      if (varyMetadata?.vary) {
-        varyHeader = varyMetadata.vary;
-      }
-    }
-
-    // Build cache key with Vary headers if available
-    const cacheKey = this.buildCacheKey(
-      url,
-      varyHeader,
-      processedOptions.options?.headers ?? new Headers(),
-      processedOptions.cache?.keyPrefix
-    );
-
-    // Check cache for existing response
-    if (this.cache) {
-      const cachedResponse = this.cache.get<GholaResponse<T>>(cacheKey);
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-    }
-
-    const body = this.processBody(
-      processedOptions.options?.body,
-      processedOptions.options?.headers ?? new Headers()
-    );
-
-    // Configure timeout and external AbortController signal
-    let controller: AbortController | undefined;
-    let signal: AbortSignal | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let abortHandler: EventListenerOrEventListenerObject | undefined;
 
-    const timeout = processedOptions.options?.timeout ?? this.defaultTimeout;
-    const externalSignal = processedOptions.options?.signal;
+    let timeout = this.defaultTimeout;
+    let externalSignal: AbortSignal | undefined;
+    let processedOptions = options; // Asign options to avoid undefined definition
 
-    // Handle external AbortSignal
-    if (externalSignal) {
-      signal = externalSignal;
+    try {
+      // Apply pre processing middlewares
+      processedOptions = await this.applyPreMiddlewares({
+        ...options,
+        options: { ...options.options, headers },
+      });
 
-      // If we also have a timeout, we need to create a combined signal
-      if (typeof AbortController !== 'undefined' && timeout) {
-        controller = new AbortController();
+      if (processedOptions.options?.timeout) {
+        timeout = processedOptions.options.timeout;
+      }
 
-        // Abort if external signal is already aborted
-        if (externalSignal.aborted) {
-          controller.abort();
-        } else {
-          // Listen to external signal
-          abortHandler = () => {
-            controller?.abort();
-          };
-          externalSignal.addEventListener('abort', abortHandler, { once: true });
+      if (processedOptions.options?.signal) {
+        externalSignal = processedOptions.options.signal;
+      }
+
+      let url = `${(this.baseUrl || processedOptions.baseUrl) ?? ''}${endpoint}`;
+
+      // Apply query parameters if provided
+      if (processedOptions.options?.params) {
+        url = this.buildUrl(url, processedOptions.options.params);
+      }
+
+      // First, try to get the Vary header from a previous response for this URL
+      const baseKeyForVary = `${processedOptions.cache?.keyPrefix ?? ''}-${url}`;
+      const varyMetadataKey = `${baseKeyForVary}-vary-metadata`;
+
+      let varyHeader: string | null = null;
+      if (this.cache) {
+        const varyMetadata = this.cache.get<{ vary: string }>(varyMetadataKey);
+        if (varyMetadata?.vary) {
+          varyHeader = varyMetadata.vary;
         }
+      }
 
+      // Build cache key with Vary headers if available
+      const cacheKey = this.buildCacheKey(
+        url,
+        varyHeader,
+        processedOptions.options?.headers ?? new Headers(),
+        processedOptions.cache?.keyPrefix
+      );
+
+      // Check cache for existing response
+      if (this.cache) {
+        const cachedResponse = this.cache.get<GholaResponse<T>>(cacheKey);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+      }
+
+      const body = this.processBody(
+        processedOptions.options?.body,
+        processedOptions.options?.headers ?? new Headers()
+      );
+
+      // Configure timeout and external AbortController signal
+      let controller: AbortController | undefined;
+      let signal: AbortSignal | undefined;
+
+      // Handle external AbortSignal
+      if (externalSignal) {
+        signal = externalSignal;
+
+        // If we also have a timeout, we need to create a combined signal
+        if (typeof AbortController !== 'undefined' && timeout) {
+          controller = new AbortController();
+
+          // Abort if external signal is already aborted
+          if (externalSignal.aborted) {
+            controller.abort();
+          } else {
+            // Listen to external signal
+            abortHandler = () => {
+              controller?.abort();
+            };
+            externalSignal.addEventListener('abort', abortHandler, { once: true });
+          }
+
+          signal = controller.signal;
+
+          timeoutId = setTimeout(() => {
+            controller?.abort();
+          }, timeout);
+        }
+      } else if (typeof AbortController !== 'undefined' && timeout) {
+        // Only timeout, no external signal
+        controller = new AbortController();
         signal = controller.signal;
 
         timeoutId = setTimeout(() => {
           controller?.abort();
         }, timeout);
+      } else if (timeout && typeof AbortController === 'undefined') {
+        console.warn(
+          'GholaFetch: Is not possible to set timeout because AbortController is not available in this environment.'
+        );
       }
-    } else if (typeof AbortController !== 'undefined' && timeout) {
-      // Only timeout, no external signal
-      controller = new AbortController();
-      signal = controller.signal;
 
-      timeoutId = setTimeout(() => {
-        controller?.abort();
-      }, timeout);
-    } else if (timeout && typeof AbortController === 'undefined') {
-      console.warn(
-        'GholaFetch: Is not possible to set timeout because AbortController is not available in this environment.'
-      );
-    }
-
-    try {
       const fetchOptions: RequestInit = {
         method: processedOptions.method || 'GET',
         headers: processedOptions.options?.headers,
