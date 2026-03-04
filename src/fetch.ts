@@ -269,10 +269,28 @@ export class GholaFetch {
 
     try {
       // Apply pre processing middlewares
-      processedOptions = await this.applyPreMiddlewares({
-        ...options,
-        options: { ...options.options, headers },
-      });
+      try {
+        processedOptions = await this.applyPreMiddlewares({
+          ...options,
+          options: { ...options.options, headers },
+        });
+      } catch (preError: any) {
+        if (preError instanceof GholaFetchError) {
+          throw preError; // It is a GholaFetchError, let's pass it as is
+        }
+        // Common error of a pre-middleware → wrap it in a synthetic response
+        const syntheticResponse: GholaResponse<any> = {
+          headers: new Headers(),
+          status: 0,
+          statusText: 'Pre-Middleware Error',
+          data: { originalError: preError },
+        };
+        throw new GholaFetchError(
+          preError instanceof Error ? preError.message : String(preError),
+          0,
+          syntheticResponse
+        );
+      }
 
       if (processedOptions.options?.timeout) {
         timeout = processedOptions.options.timeout;
