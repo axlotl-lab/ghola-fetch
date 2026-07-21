@@ -13,7 +13,8 @@
     "rootDir": "./src",
     "removeComments": false,
     "types": [
-      "node"
+      "node",
+      "jest"
     ]
   },
   "include": [
