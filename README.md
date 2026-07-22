@@ -12,6 +12,7 @@ A modern, flexible and powerful HTTP client for browser and Node.js environments
 - Powerful middleware system for request/response transformation
 - Automatic content type detection and parsing
 - Integrated caching with Cache-Control support
+- Configurable retry with pluggable backoff strategies for idempotent requests
 - Comprehensive error handling
 - TypeScript support
 - Works in both browser and Node.js environments
@@ -214,6 +215,63 @@ const getData = async () => {
   // Second call might return from cache if the server sent appropriate Cache-Control headers
   const response2 = await GholaFetch.get('/api/data');
 };
+```
+
+### Retry with Backoff
+
+`RetryMiddleware` adds configurable retry-with-backoff for transient failures. It's a regular middleware, so it's opt-in via `.use()` like any other:
+
+```typescript
+import { GholaFetch, RetryMiddleware } from '@axlotl-lab/ghola-fetch';
+
+GholaFetch.create({ baseUrl: 'https://api.example.com' });
+
+// Defaults: retries GET/PUT/DELETE/PATCH (POST is opt-in), up to 3 times,
+// on 502/503/504/429 responses and on network/timeout errors,
+// with exponential backoff + jitter, honoring a Retry-After header when present.
+GholaFetch.use(RetryMiddleware());
+```
+
+By default, `POST` is **not** retried, since it's typically not idempotent. Enable it explicitly per verb, and override any option (max retries, status codes, strategy) globally or per verb:
+
+```typescript
+import {
+  GholaFetch,
+  RetryMiddleware,
+  FixedDelay,
+  ExponentialBackoff,
+} from '@axlotl-lab/ghola-fetch';
+
+GholaFetch.use(
+  RetryMiddleware({
+    maxRetries: 3,
+    strategy: new ExponentialBackoff(200, 2, 10_000), // base 200ms, factor 2, capped at 10s
+    condition: { statusCodes: [502, 503, 504, 429], onNetworkError: true },
+    methods: {
+      // Opt-in POST, but only for a specific idempotency-safe endpoint's client,
+      // with its own (smaller) retry budget and backoff
+      POST: { enabled: true, maxRetries: 1, strategy: new FixedDelay(500) },
+    },
+    onRetry: ({ attempt, delay, error }) => {
+      console.warn(`Retrying (attempt ${attempt}) after ${delay}ms due to`, error.message);
+    },
+  })
+);
+```
+
+Built-in strategies implement the `RetryStrategy` interface (`getDelay(attempt: number): number`), so you can also plug in your own:
+
+```typescript
+import { RetryStrategy } from '@axlotl-lab/ghola-fetch';
+
+class LinearBackoff implements RetryStrategy {
+  constructor(private stepMs: number) {}
+  getDelay(attempt: number) {
+    return this.stepMs * attempt;
+  }
+}
+
+GholaFetch.use(RetryMiddleware({ strategy: new LinearBackoff(300) }));
 ```
 
 ### Error Handling

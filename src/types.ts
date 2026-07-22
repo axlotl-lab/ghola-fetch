@@ -36,6 +36,7 @@ export type GholaRequestOptions = {
   method?: HttpMethod;
   options?: RequestWithBodyOptions;
   cache?: { keyPrefix?: string };
+  retry?: { attempt?: number };
 };
 
 export type GholaRequest = {
