@@ -479,7 +479,7 @@ export class GholaFetch {
         clearTimeout(timeoutId);
       }
 
-      if (error.name === 'AbortError') {
+      if (error?.name === 'AbortError') {
         console.error('Request timed out after', timeout, 'ms');
 
         // Create a synthetic response for timeout errors
