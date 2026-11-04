@@ -183,6 +183,20 @@ export class GholaFetch {
   }
 
   /**
+   * Joins a base URL and an endpoint, ensuring exactly one slash between them
+   * @param baseUrl The base URL
+   * @param endpoint The API endpoint
+   * @returns The combined URL
+   */
+  private joinUrl(baseUrl: string, endpoint: string): string {
+    if (!baseUrl) return endpoint;
+    if (!endpoint) return baseUrl;
+    if (endpoint.startsWith('?') || endpoint.startsWith('#')) return `${baseUrl}${endpoint}`;
+
+    return `${baseUrl.replace(/\/+$/, '')}/${endpoint.replace(/^\/+/, '')}`;
+  }
+
+  /**
    * Builds URL with query parameters
    * @param baseUrl The base URL without query parameters
    * @param params The query parameters object or URLSearchParams
@@ -300,7 +314,7 @@ export class GholaFetch {
         externalSignal = processedOptions.options.signal;
       }
 
-      let url = `${(this.baseUrl || processedOptions.baseUrl) ?? ''}${endpoint}`;
+      let url = this.joinUrl((this.baseUrl || processedOptions.baseUrl) ?? '', endpoint);
 
       // Apply query parameters if provided
       if (processedOptions.options?.params) {

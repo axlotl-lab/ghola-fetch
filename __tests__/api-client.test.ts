@@ -36,6 +36,25 @@ describe('GholaFetch', () => {
       expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
     });
 
+    test.each([
+      ['https://api.example.com', '/test-endpoint'],
+      ['https://api.example.com', 'test-endpoint'],
+      ['https://api.example.com/', '/test-endpoint'],
+      ['https://api.example.com/', 'test-endpoint'],
+    ])('should join baseUrl "%s" and endpoint "%s" with a single slash', async (baseUrl, endpoint) => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => '',
+        headers: new Headers({ 'Content-Type': 'text/plain' }),
+      });
+
+      await new GholaFetch({ baseUrl }).get(endpoint);
+
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test-endpoint', expect.any(Object));
+    });
+
     test('should make a successful GET request with text response', async () => {
       const responseText = 'This is a text response';
       mockFetch.mockResolvedValueOnce({
