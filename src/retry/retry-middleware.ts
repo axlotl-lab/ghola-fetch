@@ -122,6 +122,11 @@ export function RetryMiddleware(options: RetryMiddlewareOptions = {}): GholaMidd
       return undefined;
     }
 
+    // A request cancelled through its signal was cancelled on purpose: never retry it
+    if (error.kind === 'aborted') {
+      return undefined;
+    }
+
     const isNetworkError = error.status === 0 || error.status === 408;
     const matchesCondition =
       (verbConfig.condition.onNetworkError && isNetworkError) ||
