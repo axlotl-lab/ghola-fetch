@@ -5,8 +5,10 @@ import {
   ConstructorOptions,
   GholaMiddleware,
   GholaRequest,
+  GholaRequestContext,
   GholaRequestOptions,
   GholaResponse,
+  GholaSettledOutcome,
   RequestRetryFunction,
 } from './types';
 
@@ -136,13 +138,17 @@ export class GholaFetch {
   /**
    * Applies pre-request middlewares to the request options
    * @param options The request options
+   * @param context The context of the current attempt
    * @returns The processed request options
    */
-  private async applyPreMiddlewares(options: GholaRequestOptions): Promise<GholaRequestOptions> {
+  private async applyPreMiddlewares(
+    options: GholaRequestOptions,
+    context: GholaRequestContext
+  ): Promise<GholaRequestOptions> {
     let processedOptions = options;
     for (const middleware of this.middlewares) {
       if (middleware.pre) {
-        processedOptions = await middleware.pre(processedOptions);
+        processedOptions = await middleware.pre(processedOptions, context);
       }
     }
     return processedOptions;
@@ -151,16 +157,44 @@ export class GholaFetch {
   /**
    * Applies post-response middlewares to the API response
    * @param response The API response
+   * @param context The context of the current attempt
    * @returns The processed API response
    */
-  private async applyPostMiddlewares<T>(response: GholaResponse<T>): Promise<GholaResponse<T>> {
+  private async applyPostMiddlewares<T>(
+    response: GholaResponse<T>,
+    context: GholaRequestContext
+  ): Promise<GholaResponse<T>> {
     let processedResponse = response;
     for (const middleware of this.middlewares) {
       if (middleware.post) {
-        processedResponse = await middleware.post(processedResponse);
+        processedResponse = await middleware.post(processedResponse, context);
       }
     }
     return processedResponse;
+  }
+
+  /**
+   * Notifies the `settled` hooks that an attempt ended. They are observation-only:
+   * they are not awaited and their errors never affect the request.
+   * @param outcome The response or the error the attempt ended with
+   * @param context The context of the attempt
+   */
+  private notifySettled(outcome: GholaSettledOutcome, context: GholaRequestContext): void {
+    for (const middleware of this.middlewares) {
+      if (!middleware.settled) {
+        continue;
+      }
+      try {
+        const result = middleware.settled(outcome, context);
+        if (result && typeof (result as Promise<void>).catch === 'function') {
+          (result as Promise<void>).catch((settledError) => {
+            console.error('GholaFetch: settled middleware failed:', settledError);
+          });
+        }
+      } catch (settledError) {
+        console.error('GholaFetch: settled middleware failed:', settledError);
+      }
+    }
   }
 
   /**
@@ -252,10 +286,35 @@ export class GholaFetch {
    * @param options The request options
    * @returns A promise that resolves to the API response
    */
-  public async request<T = any>(
+  public request<T = any>(
     endpoint: string,
     options: GholaRequestOptions = {}
   ): Promise<GholaResponse<T>> {
+    return this.execute<T>(endpoint, options, 1);
+  }
+
+  /**
+   * Runs one attempt of a request. Retries call it again with `attempt + 1`.
+   * @param endpoint The API endpoint
+   * @param options The request options
+   * @param attempt 1 for the original request, +1 for each retry
+   * @returns A promise that resolves to the API response
+   */
+  private async execute<T = any>(
+    endpoint: string,
+    options: GholaRequestOptions,
+    attempt: number
+  ): Promise<GholaResponse<T>> {
+    // A new context for every attempt, so concurrent requests and retries never share it
+    const context: GholaRequestContext = {
+      endpoint,
+      method: options.method ?? 'GET',
+      startTime: Date.now(),
+      attempt,
+      fromCache: false,
+      state: {},
+    };
+
     const headers = new Headers();
 
     if (this.defaultHeaders) {
@@ -286,10 +345,13 @@ export class GholaFetch {
     try {
       // Apply pre processing middlewares
       try {
-        processedOptions = await this.applyPreMiddlewares({
-          ...options,
-          options: { ...options.options, headers },
-        });
+        processedOptions = await this.applyPreMiddlewares(
+          {
+            ...options,
+            options: { ...options.options, headers },
+          },
+          context
+        );
       } catch (preError: any) {
         if (preError instanceof GholaFetchError) {
           throw preError; // It is a GholaFetchError, let's pass it as is
@@ -308,6 +370,9 @@ export class GholaFetch {
           'unknown'
         );
       }
+
+      // A pre middleware may have changed the method
+      context.method = processedOptions.method ?? 'GET';
 
       if (processedOptions.options?.timeout) {
         timeout = processedOptions.options.timeout;
@@ -348,6 +413,9 @@ export class GholaFetch {
       if (this.cache) {
         const cachedResponse = this.cache.get<GholaResponse<T>>(cacheKey);
         if (cachedResponse) {
+          // Cached responses were already processed by the post middlewares: they don't run again
+          context.fromCache = true;
+          this.notifySettled({ response: cachedResponse }, context);
           return cachedResponse;
         }
       }
@@ -455,7 +523,7 @@ export class GholaFetch {
       }
 
       // Apply post processing middlewares
-      const processedResponse = await this.applyPostMiddlewares(apiResponse);
+      const processedResponse = await this.applyPostMiddlewares(apiResponse, context);
 
       // Cache handling (now only cache successful responses)
       if (response.ok && this.cache && !isRaw) {
@@ -468,32 +536,32 @@ export class GholaFetch {
           if (maxAgeMatch) {
             ttl = parseInt(maxAgeMatch[1], 10) * 1000; // Convert to milliseconds
 
-            // Don't cache if Vary: *
-            if (responseVaryHeader && responseVaryHeader.trim() === '*') {
-              // Vary: * means the response varies based on factors not expressible in headers
-              // Should not be cached
-              return processedResponse;
-            }
+            // Vary: * means the response varies based on factors not expressible in headers
+            // Should not be cached
+            const varyAll = responseVaryHeader !== null && responseVaryHeader.trim() === '*';
 
-            // Build the correct cache key with Vary header from response
-            const finalCacheKey = this.buildCacheKey(
-              url,
-              responseVaryHeader,
-              processedOptions.options?.headers ?? new Headers(),
-              processedOptions.cache?.keyPrefix
-            );
+            if (!varyAll) {
+              // Build the correct cache key with Vary header from response
+              const finalCacheKey = this.buildCacheKey(
+                url,
+                responseVaryHeader,
+                processedOptions.options?.headers ?? new Headers(),
+                processedOptions.cache?.keyPrefix
+              );
 
-            // Store the response with the correct key
-            this.cache.set(finalCacheKey, processedResponse, ttl);
+              // Store the response with the correct key
+              this.cache.set(finalCacheKey, processedResponse, ttl);
 
-            // Store Vary metadata for future requests to this URL
-            if (responseVaryHeader) {
-              this.cache.set(varyMetadataKey, { vary: responseVaryHeader }, ttl);
+              // Store Vary metadata for future requests to this URL
+              if (responseVaryHeader) {
+                this.cache.set(varyMetadataKey, { vary: responseVaryHeader }, ttl);
+              }
             }
           }
         }
       }
 
+      this.notifySettled({ response: processedResponse }, context);
       return processedResponse;
     } catch (error: any) {
       // This block captures both network errors AND API errors (!response.ok)
@@ -504,81 +572,18 @@ export class GholaFetch {
         clearTimeout(timeoutId);
       }
 
-      // If it's already a GholaFetchError (from our own throw or a middleware), pass it as is
-      if (error instanceof GholaFetchError) {
-        return this.handleError(error, request);
-      }
+      const gholaFetchError = this.toGholaFetchError<T>(error, {
+        fetchFailed,
+        timedOut,
+        timeout,
+        externalSignal,
+      });
 
-      const isAbort =
-        error?.name === 'AbortError' ||
-        error?.name === 'TimeoutError' ||
-        (fetchFailed && (timedOut || externalSignal?.aborted === true));
+      // Settle before the error middlewares run, so every failed attempt is reported exactly once,
+      // even when a retry or a fallback response takes over afterwards
+      this.notifySettled({ error: gholaFetchError }, context);
 
-      if (isAbort) {
-        // Our own timeout, or an external signal aborted with a TimeoutError (e.g. AbortSignal.timeout())
-        const isTimeout =
-          timedOut ||
-          error?.name === 'TimeoutError' ||
-          externalSignal?.reason?.name === 'TimeoutError';
-
-        // Both keep status 408 for backwards compatibility; use `kind` to tell them apart
-        if (isTimeout) {
-          const message = timedOut
-            ? `Request timed out after ${timeout}ms`
-            : 'Request timed out (signal)';
-          console.error(message);
-
-          const syntheticResponse: GholaResponse<T> = {
-            headers: new Headers(),
-            status: 408, // Request Timeout
-            statusText: 'Request Timeout',
-            data: { message } as T,
-          };
-
-          const gholaFetchError = new GholaFetchError(
-            'Request timeout',
-            408,
-            syntheticResponse,
-            'timeout'
-          );
-          return this.handleError(gholaFetchError, request);
-        }
-
-        const syntheticResponse: GholaResponse<T> = {
-          headers: new Headers(),
-          status: 408,
-          statusText: 'Request Aborted',
-          data: { message: 'Request aborted', reason: externalSignal?.reason } as T,
-        };
-
-        const gholaFetchError = new GholaFetchError(
-          'Request aborted',
-          408,
-          syntheticResponse,
-          'aborted'
-        );
-        return this.handleError(gholaFetchError, request);
-      }
-
-      // Otherwise it's a network error (fetch itself failed) or an unexpected one
-      console.error('Fetch error:', error);
-
-      // Create a synthetic response for network errors
-      const syntheticResponse: GholaResponse<T> = {
-        headers: new Headers(),
-        status: 0,
-        statusText: 'Network Error',
-        data: { originalError: error } as T,
-      };
-
-      const gholaFetchError = new GholaFetchError(
-        error instanceof Error ? error.message : String(error),
-        0, // Status 0 for network/fetch errors
-        syntheticResponse,
-        fetchFailed ? 'network' : 'unknown'
-      );
-
-      return this.handleError(gholaFetchError, request);
+      return this.handleError(gholaFetchError, request, context);
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -588,6 +593,86 @@ export class GholaFetch {
         externalSignal.removeEventListener('abort', abortHandler);
       }
     }
+  }
+
+  /**
+   * Converts anything thrown during an attempt into a GholaFetchError with the right `kind`
+   * @param error The thrown value
+   * @param info What happened during the attempt
+   * @returns The error as is if it already is a GholaFetchError, a new one otherwise
+   */
+  private toGholaFetchError<T>(
+    error: any,
+    info: {
+      fetchFailed: boolean;
+      timedOut: boolean;
+      timeout?: number;
+      externalSignal?: AbortSignal;
+    }
+  ): GholaFetchError<T> {
+    const { fetchFailed, timedOut, timeout, externalSignal } = info;
+
+    // If it's already a GholaFetchError (from our own throw or a middleware), pass it as is
+    if (error instanceof GholaFetchError) {
+      return error;
+    }
+
+    const isAbort =
+      error?.name === 'AbortError' ||
+      error?.name === 'TimeoutError' ||
+      (fetchFailed && (timedOut || externalSignal?.aborted === true));
+
+    if (isAbort) {
+      // Our own timeout, or an external signal aborted with a TimeoutError (e.g. AbortSignal.timeout())
+      const isTimeout =
+        timedOut ||
+        error?.name === 'TimeoutError' ||
+        externalSignal?.reason?.name === 'TimeoutError';
+
+      // Both keep status 408 for backwards compatibility; use `kind` to tell them apart
+      if (isTimeout) {
+        const message = timedOut
+          ? `Request timed out after ${timeout}ms`
+          : 'Request timed out (signal)';
+        console.error(message);
+
+        const syntheticResponse: GholaResponse<T> = {
+          headers: new Headers(),
+          status: 408, // Request Timeout
+          statusText: 'Request Timeout',
+          data: { message } as T,
+        };
+
+        return new GholaFetchError('Request timeout', 408, syntheticResponse, 'timeout');
+      }
+
+      const syntheticResponse: GholaResponse<T> = {
+        headers: new Headers(),
+        status: 408,
+        statusText: 'Request Aborted',
+        data: { message: 'Request aborted', reason: externalSignal?.reason } as T,
+      };
+
+      return new GholaFetchError('Request aborted', 408, syntheticResponse, 'aborted');
+    }
+
+    // Otherwise it's a network error (fetch itself failed) or an unexpected one
+    console.error('Fetch error:', error);
+
+    // Create a synthetic response for network errors
+    const syntheticResponse: GholaResponse<T> = {
+      headers: new Headers(),
+      status: 0,
+      statusText: 'Network Error',
+      data: { originalError: error } as T,
+    };
+
+    return new GholaFetchError(
+      error instanceof Error ? error.message : String(error),
+      0, // Status 0 for network/fetch errors
+      syntheticResponse,
+      fetchFailed ? 'network' : 'unknown'
+    );
   }
 
   /**
@@ -830,23 +915,27 @@ export class GholaFetch {
   /**
    * Processes an error through error middlewares before throwing it
    * @param error The error to process
+   * @param request The request that failed
+   * @param context The context of the failed attempt
    * @throws The processed error, or a response if middleware converts it
    */
   private async handleError<T>(
     error: GholaFetchError<T>,
-    request: GholaRequest
+    request: GholaRequest,
+    context: GholaRequestContext
   ): Promise<GholaResponse<T>> {
     let processedError = error;
 
+    // A retry is a new attempt, with its own new context
     const retry: RequestRetryFunction = async (retryRequest: GholaRequest) => {
-      return this.request(retryRequest.endpoint, retryRequest.options);
+      return this.execute(retryRequest.endpoint, retryRequest.options, context.attempt + 1);
     };
 
     for (const middleware of this.middlewares) {
       if (middleware.error) {
         try {
           // Middleware can either throw a modified error or convert it to a response
-          const result = await middleware.error(processedError, request, retry);
+          const result = await middleware.error(processedError, request, retry, context);
 
           if (result === undefined) {
             continue;
