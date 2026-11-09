@@ -232,6 +232,8 @@ GholaFetch.create({ baseUrl: 'https://api.example.com' });
 GholaFetch.use(RetryMiddleware());
 ```
 
+Requests cancelled through their `signal` (`error.kind === 'aborted'`) are never retried, whatever the configuration.
+
 By default, `POST` is **not** retried, since it's typically not idempotent. Enable it explicitly per verb, and override any option (max retries, status codes, strategy) globally or per verb:
 
 ```typescript

@@ -83,6 +83,42 @@ describe('RetryMiddleware', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  test('should not retry a request aborted through its signal', async () => {
+    const onRetry = jest.fn();
+    gholaFetch.use(RetryMiddleware({ strategy: new FixedDelay(0), onRetry }));
+
+    const controller = new AbortController();
+    controller.abort();
+
+    mockFetch.mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'));
+
+    await expect(gholaFetch.get('/test', { signal: controller.signal })).rejects.toMatchObject({
+      kind: 'aborted',
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  test('should still retry a request that timed out', async () => {
+    gholaFetch.use(RetryMiddleware({ strategy: new FixedDelay(0) }));
+
+    mockFetch
+      .mockImplementationOnce(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('The operation was aborted.', 'AbortError'))
+            );
+          })
+      )
+      .mockResolvedValueOnce(mockOkResponse(200, { ok: true }));
+
+    const response = await gholaFetch.get('/test', { timeout: 10 });
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   test('should stop retrying after maxRetries and propagate the original error', async () => {
     gholaFetch.use(RetryMiddleware({ strategy: new FixedDelay(0), maxRetries: 2 }));
 
