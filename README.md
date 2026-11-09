@@ -313,6 +313,33 @@ const handleData = async () => {
 };
 ```
 
+#### Error kinds
+
+Every `GholaFetchError` has a `kind` that tells what caused it, both when it's caught and inside `error` middlewares (which run for every kind, not only for HTTP errors):
+
+| `kind`    | When                                                                          | `status` |
+| --------- | ----------------------------------------------------------------------------- | -------- |
+| `http`    | The server answered with a status >= 400                                      | The response status |
+| `timeout` | The `timeout` option was exceeded, or the `signal` aborted with a `TimeoutError` (e.g. `AbortSignal.timeout()`) | `408` |
+| `aborted` | The request was cancelled through the `signal` option                         | `408` |
+| `network` | `fetch` itself failed (DNS, connection refused, CORS, offline...)             | `0` |
+| `unknown` | Anything else, e.g. a middleware threw a plain `Error`                        | `0` |
+
+`timeout` and `aborted` both keep `status: 408` for backwards compatibility, so use `kind` to tell them apart:
+
+```typescript
+try {
+  await GholaFetch.get('/api/data', { signal: controller.signal, timeout: 5000 });
+} catch (error) {
+  if (error instanceof GholaFetchError) {
+    if (error.kind === 'aborted') return; // cancelled on purpose, nothing to report
+    if (error.kind === 'timeout') showToast('The server is taking too long');
+  }
+}
+```
+
+When you throw a `GholaFetchError` yourself (e.g. from a `pre` middleware), you can pass the kind as the fourth constructor argument. If you don't, it defaults to `http` when `status >= 400` and to `unknown` otherwise.
+
 ## TypeScript Support
 
 GholaFetch fully supports TypeScript, allowing you to specify the response data type:

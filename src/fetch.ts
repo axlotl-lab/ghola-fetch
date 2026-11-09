@@ -279,6 +279,8 @@ export class GholaFetch {
 
     let timeout = this.defaultTimeout;
     let externalSignal: AbortSignal | undefined;
+    let timedOut = false; // true when our own timeout aborted the request
+    let fetchFailed = false; // true when the error was thrown by fetch() itself
     let processedOptions = options; // Asign options to avoid undefined definition
 
     try {
@@ -302,7 +304,8 @@ export class GholaFetch {
         throw new GholaFetchError(
           preError instanceof Error ? preError.message : String(preError),
           0,
-          syntheticResponse
+          syntheticResponse,
+          'unknown'
         );
       }
 
@@ -380,6 +383,7 @@ export class GholaFetch {
           signal = controller.signal;
 
           timeoutId = setTimeout(() => {
+            timedOut = true;
             controller?.abort();
           }, timeout);
         }
@@ -389,6 +393,7 @@ export class GholaFetch {
         signal = controller.signal;
 
         timeoutId = setTimeout(() => {
+          timedOut = true;
           controller?.abort();
         }, timeout);
       } else if (timeout && typeof AbortController === 'undefined') {
@@ -405,7 +410,13 @@ export class GholaFetch {
         signal,
       };
 
-      const response = await fetch(url, fetchOptions);
+      let response: Response;
+      try {
+        response = await fetch(url, fetchOptions);
+      } catch (fetchError) {
+        fetchFailed = true;
+        throw fetchError;
+      }
 
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -440,7 +451,7 @@ export class GholaFetch {
 
         // Throw the error with the complete response
         // Don't make any assumptions about the error data structure
-        throw new GholaFetchError(defaultError, response.status, apiResponse);
+        throw new GholaFetchError(defaultError, response.status, apiResponse, 'http');
       }
 
       // Apply post processing middlewares
@@ -493,27 +504,63 @@ export class GholaFetch {
         clearTimeout(timeoutId);
       }
 
-      if (error?.name === 'AbortError') {
-        console.error('Request timed out after', timeout, 'ms');
-
-        // Create a synthetic response for timeout errors
-        const syntheticResponse: GholaResponse<T> = {
-          headers: new Headers(),
-          status: 408, // Request Timeout
-          statusText: 'Request Timeout',
-          data: { message: `Request timed out after ${timeout}ms` } as T,
-        };
-
-        const gholaFetchError = new GholaFetchError('Request timeout', 408, syntheticResponse);
-        return this.handleError(gholaFetchError, request);
-      }
-
-      // If it's already an ApiClientError (from our own throw), just re-throw it
+      // If it's already a GholaFetchError (from our own throw or a middleware), pass it as is
       if (error instanceof GholaFetchError) {
         return this.handleError(error, request);
       }
 
-      // Otherwise it's a network or unexpected error
+      const isAbort =
+        error?.name === 'AbortError' ||
+        error?.name === 'TimeoutError' ||
+        (fetchFailed && (timedOut || externalSignal?.aborted === true));
+
+      if (isAbort) {
+        // Our own timeout, or an external signal aborted with a TimeoutError (e.g. AbortSignal.timeout())
+        const isTimeout =
+          timedOut ||
+          error?.name === 'TimeoutError' ||
+          externalSignal?.reason?.name === 'TimeoutError';
+
+        // Both keep status 408 for backwards compatibility; use `kind` to tell them apart
+        if (isTimeout) {
+          const message = timedOut
+            ? `Request timed out after ${timeout}ms`
+            : 'Request timed out (signal)';
+          console.error(message);
+
+          const syntheticResponse: GholaResponse<T> = {
+            headers: new Headers(),
+            status: 408, // Request Timeout
+            statusText: 'Request Timeout',
+            data: { message } as T,
+          };
+
+          const gholaFetchError = new GholaFetchError(
+            'Request timeout',
+            408,
+            syntheticResponse,
+            'timeout'
+          );
+          return this.handleError(gholaFetchError, request);
+        }
+
+        const syntheticResponse: GholaResponse<T> = {
+          headers: new Headers(),
+          status: 408,
+          statusText: 'Request Aborted',
+          data: { message: 'Request aborted', reason: externalSignal?.reason } as T,
+        };
+
+        const gholaFetchError = new GholaFetchError(
+          'Request aborted',
+          408,
+          syntheticResponse,
+          'aborted'
+        );
+        return this.handleError(gholaFetchError, request);
+      }
+
+      // Otherwise it's a network error (fetch itself failed) or an unexpected one
       console.error('Fetch error:', error);
 
       // Create a synthetic response for network errors
@@ -527,7 +574,8 @@ export class GholaFetch {
       const gholaFetchError = new GholaFetchError(
         error instanceof Error ? error.message : String(error),
         0, // Status 0 for network/fetch errors
-        syntheticResponse
+        syntheticResponse,
+        fetchFailed ? 'network' : 'unknown'
       );
 
       return this.handleError(gholaFetchError, request);
