@@ -1,6 +1,6 @@
 {
   "name": "@axlotl-lab/ghola-fetch",
-  "version": "1.9.2",
+  "version": "1.10.0",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
